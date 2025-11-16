@@ -1,0 +1,46 @@
+title: CNC-E-2726320-187-Replace.exe Network Connection (Sysmon EID 3)
+id: 0c4f7a62-8b1d-4f64-8f0a-2726320187aa
+status: test
+description: |
+  Detects **network connections** attributed to Replace.exe. Replace has no native HTTP/S client;
+  any egress typically results from accessing **UNC paths**:
+    • **SMB**: \\server\share\... → TCP 445/139
+    • **WebDAV UNC**: \\host\DavWWWRoot\... or \\host@SSL\DavWWWRoot\... → HTTP/HTTPS via the WebDAV
+      mini-redirector (80/443)
+  Network activity by Replace.exe—especially from workstations to **unknown or Internet hosts**—
+  can indicate LOLBIN-style ingress/copy (T1105) sourced from remote shares.
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Replace/                          
+
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_image:
+    Image|endswith: '\replace.exe'
+  smb_ports:
+    DestinationPort:
+      - 445
+      - 139
+  webdav_ports:
+    DestinationPort:
+      - 80
+      - 443
+
+  # Fire on Replace.exe making SMB or WebDAV-class connections
+  condition: sel_eid3 and sel_image and (smb_ports or webdav_ports)
+
+falsepositives:
+  - Admin file maintenance against **internal SMB shares** (Replace.exe copying within corp UNC paths).
+  - WebDAV usage in managed environments (rare): sanctioned on-prem SharePoint/WebDAV servers.
+level: high

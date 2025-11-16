@@ -1,0 +1,57 @@
+title: CNC-E-2726320-176A-TAR Ingress via UNC/WebDAV (Process Creation)
+id: 0c2d3c8e-5b0a-4c49-9f76-2726320176aa
+status: test
+description: |
+  Detects Windows tar.exe (bsdtar) invoked with remote paths that imply pulling content
+  over the network: SMB UNC (\\server\share\...) or WebDAV UNC (\\host\DavWWWRoot\... or
+  \\host@SSL\DavWWWRoot\...). tar.exe itself is a local archiver (added to Windows 10+),
+  not an HTTP client; “download” behavior arises when UNC paths are used and the OS
+  redirector fetches data from SMB/WebDAV. Useful for spotting ingress tool transfer (T1105).
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Tar/           
+  - https://ss64.com/nt/tar.html                                  
+
+tags:  
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # -------- Sysmon (EID 1) --------
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_proc:
+    Image|endswith: '\tar.exe'
+  sel_sysmon_ofn:
+    OriginalFileName: 'bsdtar.exe'
+  sel_sysmon_unc_or_webdav:
+    CommandLine|contains:
+      - '\\\\'                # any UNC (SMB/WebDAV)
+      - 'DavWWWRoot'          # WebDAV UNC marker
+      - '@SSL'                # HTTPS WebDAV marker
+
+  # -------- Windows Security (EID 4688) --------
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_proc:
+    NewProcessName|endswith: '\tar.exe'
+  sel_4688_unc_or_webdav:
+    ProcessCommandLine|contains:
+      - '\\\\'
+      - 'DavWWWRoot'
+      - '@SSL'
+
+  # Fire when tar.exe runs with UNC/WebDAV in CLI (ingress/copy from remote)
+  condition: 
+    ( sel_sysmon_base and (sel_sysmon_proc or sel_sysmon_ofn) and sel_sysmon_unc_or_webdav )
+     or ( sel_4688_base and sel_4688_proc and sel_4688_unc_or_webdav )
+
+falsepositives:
+  - Legitimate packaging/IT workflows that archive or extract from corporate SMB shares.
+  - DevOps/build pipelines that reference internal UNC paths. Tune with allow-lists of known UNC hosts/paths and trusted parent processes.
+level: high

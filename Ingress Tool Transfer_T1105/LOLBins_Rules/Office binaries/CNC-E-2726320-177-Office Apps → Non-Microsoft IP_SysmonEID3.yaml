@@ -1,0 +1,94 @@
+title: CNC-E-2726320-177-Office Apps → Non-Microsoft IP (Sysmon EID 3)
+id: 2d2e9b7b-5b2c-4d4c-9f2c-2726320177aa
+status: test
+description: |
+  Flags outbound network connections made by Microsoft Office desktop binaries (WINWORD.EXE,
+  EXCEL.EXE, POWERPNT.EXE) to IPs that are **not** in the published Microsoft 365
+  IPv4 address ranges. In normal operation these apps primarily talk to Microsoft 365
+  services (SharePoint/OneDrive, Office Online, identity, Exchange/Defender) whose
+  IP ranges are published by Microsoft.
+  
+  This rule uses an embedded allow-list of core Microsoft 365 IPv4 ranges (Optimize/Allow
+  service areas) from the official endpoints feed. Any connection outside this list
+  should be investigated (possible data exfil, third-party SaaS, or malicious C2).
+  
+author: Mohamed Hanii
+date: 2025-10-08
+references:
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/Powerpnt/     
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/Winword/     
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/Excel/        
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/Msaccess/     
+  - https://medium.com/@reegun/unsanitized-file-validation-leads-to-malicious-payload-download-via-office-binaries-202d02db7191
+  - https://learn.microsoft.com/en-us/microsoft-365/enterprise/microsoft-365-endpoints?view=o365-worldwide
+tags:
+  - attack.command_and_control
+  - attack.t1105
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+
+  sel_office_proc:
+    Image|endswith:
+      - '\winword.exe'
+      - '\excel.exe'
+      - '\powerpnt.exe'
+      - '\msaccess.exe'
+
+  # Core Microsoft 365 IPv4 ranges (subset of Optimize/Allow areas commonly used by Office desktop apps).
+  # Source: Microsoft 365 Endpoints feed (Worldwide). Keep updated with the official service.
+
+  # Exchange/Outlook core, SharePoint/OneDrive, Office Online/Common, Identity/AAD, Security.
+  sel_ms365_ipv4_allow:
+    DestinationIp|cidr:
+      # Exchange Online core (Optimize/Allow)
+      - 13.107.6.152/31
+      - 13.107.18.10/31
+      - 13.107.128.0/22
+      - 23.103.160.0/20
+      - 40.96.0.0/13
+      - 40.104.0.0/15
+      - 52.96.0.0/14
+      - 131.253.33.215/32
+      - 132.245.0.0/16
+      - 150.171.32.0/22
+      - 204.79.197.215/32
+      # EOP (mail protection)
+      - 40.92.0.0/15
+      - 40.107.0.0/16
+      - 52.100.0.0/14
+      - 104.47.0.0/17
+      # SharePoint Online / OneDrive (Optimize)
+      - 13.107.136.0/22
+      - 40.108.128.0/17
+      - 52.104.0.0/14
+      - 104.146.128.0/17
+      - 150.171.40.0/22
+      # Office Online / Office Apps Common
+      - 13.107.6.171/32
+      - 13.107.18.15/32
+      - 13.107.140.6/32
+      - 52.108.0.0/14
+      - 52.244.37.168/32
+      # Microsoft 365 Identity / AAD (Allow)
+      - 20.20.32.0/19
+      - 20.190.128.0/18
+      - 20.231.128.0/19
+      - 40.126.0.0/18
+      # M365 Security portals (Allow)
+      - 13.107.6.192/32
+      - 13.107.9.192/32
+
+  # Alert when Office app connects and destination IP is NOT in the Microsoft 365 allow-list above
+  condition: sel_eid3 and sel_office_proc and not ( sel_ms365_ipv4_allow )
+falsepositives:
+  - Legitimate connections to non-Microsoft SaaS (e.g., third-party DLP, storage, CRM add-ins) initiated from Office.
+  - Enterprise proxies or SSL break/inspect appliances that surface non-Microsoft IPs as the remote peer.
+  - Internal SharePoint/Office servers (on-prem or private IPs) if your org uses hybrid/on-prem services.
+level: medium

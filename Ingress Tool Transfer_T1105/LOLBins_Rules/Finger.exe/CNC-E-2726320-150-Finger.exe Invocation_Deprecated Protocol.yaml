@@ -1,0 +1,44 @@
+title: CNC-E-2726320-150-Finger.exe Invocation (Deprecated Protocol)
+id: af491bca-e752-4b44-9c86-df5680533dbc
+status: test
+description: |
+  Detects execution of Finger.exe, a legacy/deprecated protocol client (Finger).
+  Because Finger is obsolete on modern Windows networks, any invocation—even by administrators—
+  is unusual and may indicate command-and-control or data retrieval over a low-visibility channel.
+author: Mohamed Hanii
+date: 2025-10-02
+references:
+  - https://www.huntress.com/blog/cant-touch-this-data-exfiltration-via-finger
+  - https://lolbas-project.github.io/lolbas/Binaries/Finger/
+  - https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2012-r2-and-2012/ff961508(v=ws.11)
+tags:
+  - attack.command_and_control
+  - attack.t1105
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # -------- Sysmon (Event ID 1) --------
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_image:
+    Image|endswith: '\finger.exe'
+  sel_sysmon_ofn:
+    OriginalFileName: 'finger.exe'
+
+  # -------- Windows Security (Event ID 4688) --------
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_proc:
+    NewProcessName|endswith: '\finger.exe'
+
+  # Fire when finger.exe is launched (legacy protocol client)
+  condition: (sel_sysmon_base and (sel_sysmon_image or sel_sysmon_ofn)) or (sel_4688_base and sel_4688_proc)
+
+falsepositives:
+  - Rare administrative troubleshooting that legitimately invokes Finger (should be exceptional on modern networks).
+  - Legacy scripts or lab/test environments replicating historical behavior.
+  - Tuning tip: confirm destination host/protocol usage and block/alert by policy—Finger is deprecated and generally unnecessary.
+level: high

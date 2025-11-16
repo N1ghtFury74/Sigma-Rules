@@ -1,0 +1,33 @@
+title: CNC-E-2726320-301-VSLaunchBrowser Unusual Network Connection (Sysmon EID 3 & 22)
+id: 2726320-301-vslaunchbrowser-net
+status: test
+description: |
+  Flags **outbound network connections** or **DNS lookups** attributed to **VSLaunchBrowser.exe**. By design, **VSLaunchBrowser.exe** should not initiate 
+  any network connections or DNS queries. Any network activity from **VSLaunchBrowser.exe** (whether direct network connections—**Event ID 3**—or DNS lookups—**Event ID 22**) 
+  is unusual and warrants investigation. This could indicate potential misuse, compromise, or misattribution, especially when correlated with suspicious parent 
+  processes or command-line arguments. 
+  Investigate network connections, particularly when destination domains are unexpected or untrusted. Correlate with subsequent file downloads to **Downloads** or **INetCache**.
+author: Mohamed Hanii
+date: 2025-10-14
+references:
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/VSLaunchBrowser/
+tags:
+  - attack.command_and_control
+  - attack.t1105
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  selection_Eid:
+    EventID:
+      - 3  
+      - 22 
+  selection_img:
+    Image|endswith: '\VSLaunchBrowser.exe'
+  condition: all of selection* 
+falsepositives:
+  - Legitimate usage in environments where VSLaunchBrowser.exe connects to known internal resources, such as SharePoint sites or internal document management systems. 
+level: high

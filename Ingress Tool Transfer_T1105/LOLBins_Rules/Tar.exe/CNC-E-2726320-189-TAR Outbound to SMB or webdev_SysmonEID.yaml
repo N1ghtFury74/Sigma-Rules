@@ -1,0 +1,41 @@
+title: CNC-E-2726320-176B-TAR Outbound to SMB/WebDAV Ports (Sysmon EID 3)
+id: 5f1b2b5a-91f8-4f1f-9d76-2726320176bb
+status: test
+description: |
+  Flags network connections made by tar.exe to ports associated with SMB or WebDAV:
+  445 (SMB) and 80/443 (HTTP/S via WebDAV mini-redirector). tar.exe is not an HTTP
+  client; outbound traffic typically indicates it was pointed at a UNC path that the OS
+  resolved to SMB or WebDAV, consistent with T1105-style ingress/copy from remote hosts.
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Tar/           # LOLBAS: Copy/Compression abuse & IOCs
+  - https://learn.microsoft.com/en-us/iis/publish/using-webdav/using-the-webdav-redirector  # WebDAV redirector behavior
+  - https://ss64.com/nt/tar.html                                   # tar.exe usage on Windows
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_image:
+    Image|endswith: '\tar.exe'
+  sel_ports_smb_webdav:
+    DestinationPort:
+      - 445     # SMB
+      - 80      # WebDAV over HTTP
+      - 443     # WebDAV over HTTPS (@SSL)
+
+  # Fire when tar.exe is the talker and targets SMB/WebDAV ports
+  condition: sel_eid3 and sel_image and sel_ports_smb_webdav
+
+falsepositives:
+  - Tar-based workflows that legitimately access internal SMB shares (port 445).
+  - Rare environments using WebDAV for content distribution. Tune with allow-lists of corporate WebDAV hosts/domains; investigate first-seen external destinations.
+level: high

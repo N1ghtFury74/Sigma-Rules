@@ -1,0 +1,34 @@
+title: CNC-E-2726320-191-XSD Unexpected Network Connection (Sysmon EID 3)
+id: 5d2a0a4b-3af6-4b30-9191-2726320191aa
+status: test
+description: |
+  Detects xsd.exe establishing network connections. xsd.exe is typically used locally to
+  generate or validate schemas and should not require network egress in normal use. Network
+  connections may indicate URL-driven fetching to INetCache as noted by LOLBAS (T1105) and
+  warrant investigation (destination/parent/user context).
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/xsd/     
+  - https://learn.microsoft.com/en-us/dotnet/standard/serialization/xml-schema-definition-tool-xsd-exe
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_image:
+    Image|endswith: '\xsd.exe'
+
+  # Fire when Sysmon NetworkConnect (3) is attributed to xsd.exe
+  condition: sel_eid3 and sel_image
+
+falsepositives:
+  - Legit dev/CI use: MSBuild/Visual Studio or SDK-installed xsd.exe fetching schemas/WSDLs from internal HTTP(S) endpoints during codegen/inference on dev PCs or build agents
+level: high

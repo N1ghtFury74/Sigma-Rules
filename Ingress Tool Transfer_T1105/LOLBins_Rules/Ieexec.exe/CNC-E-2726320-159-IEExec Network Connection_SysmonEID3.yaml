@@ -1,0 +1,34 @@
+title: CNC-E-2726320-159-IEExec Network Connection (Sysmon EID 3)
+id: 6a0c0a4e-5a2e-4d5e-8b60-2726320159aa
+status: test
+description: |
+  Detects any network connection initiated by IEExec.exe (Sysmon Event ID 3). IEExec is a
+  deprecated Internet Explorer/.NET ClickOnce helper and should not be used in 2025. Any
+  outbound connection merits investigation (destination IP/host, protocol/port, reputation)
+  to determine if a malicious ClickOnce-like loader or LOLBIN abuse is occurring.
+author: Mohamed Hanii
+date: 2025-10-02
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Ieexec/
+  - https://room362.com/posts/2014/2014-01-16-application-whitelist-bypass-using-ieexec-dot-exe/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_img:
+    Image|endswith: '\ieexec.exe'
+
+  condition: sel_eid3 and sel_img 
+
+falsepositives:
+  - Extremely rare legacy app scenarios reaching internal hosts; validate business need. (Any network conncetion need further investigation specially with outbound conncetion)
+  - Tuning tip: allow-list known internal endpoints only if justified; treat internet destinations as high risk.
+level: high

@@ -1,0 +1,39 @@
+title: CNC-E-2726320-202-msdeploy Outbound To WMSvc/Agent Endpoints (Sysmon EID 3)
+id: 9b0e4e8f-1db9-4f2b-8f2f-2726320202aa
+status: test
+description: |
+  Detects **msdeploy.exe** establishing outbound network connections typical of Web Deploy
+  transfers: **8172/TCP** (WMSvc handler at `/msdeploy.axd`, usually Basic over TLS) or **80/TCP**
+  (MsDeployAgentService, often NTLM). These flows ( and other ports ) are used to push/pull content and can indicate
+  **Ingress Tool Transfer (T1105)** when originating from non-build machines or targeting unknown
+  servers. Microsoft and practitioner docs explicitly list these endpoints/ports and show push/pull
+  sync examples.
+  Note : Any outbound conncetion needs further investigation.
+author: Mohamed Hanii
+date: 2025-10-08
+references:
+  - https://www.iis.net/downloads/microsoft/web-deploy
+  - https://skysigal.com/it/ad/msdeploy/howto/a_summary_of_the_msdeploy_syntax
+  - https://sedodream.com/2014/05/08/how-to-download-a-site-using-msdeployexe
+  - https://hawktrace.com/blog/cve-2025-53772
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_img:
+    Image|endswith: '\msdeploy.exe'
+
+  condition: sel_eid3 and sel_img 
+
+falsepositives:
+  - Legit “pull” operations by admins/CI: Backups, migrations, or diagnostics that **download** a site or config from a remote IIS endpoint to the local machine (e.g., `-source:contentPath, computerName=https://…/msdeploy.axd` → `-dest:dirPath=C:\…`). Verify the target is a sanctioned IIS host and the destination path is an approved working directory. 
+  - Developer/Build workflows using packages: Retrieving a Web Deploy **package** or pulling content during build/repro steps on authorized agents. Correlate with known parents (Visual Studio/MSBuild/agent services) and approved handler/agent URLs (8172/80). 
+level: medium

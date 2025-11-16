@@ -1,0 +1,56 @@
+title: CNC-E-2726320-201-MSPUB URL on Command Line (Process Creation)
+id: 2a2a9f3f-6f3f-4d1a-8d9c-2726320201aa
+status: test
+description: |
+  Detects Microsoft Publisher (mspub.exe) launched with a direct URL on the command line
+  (e.g., http/https/ftp or '://'). LOLBAS research shows `mspub.exe <URL>` can fetch content
+  into the user's INetCache, enabling Ingress Tool Transfer (T1105) without odd flags. Treat
+  this pattern as high-signal for staging. Sysmon EID 1 provides full CLI context.
+references:
+  - IOC section in : https://lolbas-project.github.io/lolbas/OtherMSBinaries/Mspub/
+  - https://www.bleepingcomputer.com/news/security/hackers-can-abuse-microsoft-office-executables-to-download-malware/ 
+author: Mohamed Hanii
+date: 2025-10-10
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---- Sysmon (EID 1) ----
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_proc:
+    Image|endswith: '\mspub.exe'
+  sel_sysmon_ofn:
+    OriginalFileName: 'MSPUB.EXE'
+  sel_sysmon_url:
+    CommandLine|contains:
+      - '://'
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+
+  # ---- Windows Security (EID 4688) ----
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_proc:
+    NewProcessName|endswith: '\mspub.exe'
+  sel_4688_url:
+    ProcessCommandLine|contains:
+      - '://'
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+
+  # Fire when Publisher is launched with a URL in CLI
+  condition: (sel_sysmon_base and (sel_sysmon_proc or sel_sysmon_ofn) and sel_sysmon_url)
+          or (sel_4688_base and sel_4688_proc and sel_4688_url)
+
+
+falsepositives:
+  - Rare: sanctioned IT automation explicitly calling "mspub.exe <internal URL>".
+level: high

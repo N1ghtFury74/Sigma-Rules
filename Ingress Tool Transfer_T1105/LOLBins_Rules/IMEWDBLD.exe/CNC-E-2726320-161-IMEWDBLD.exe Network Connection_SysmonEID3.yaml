@@ -1,0 +1,35 @@
+title: CNC-E-2726320-161-IMEWDBLD.exe Network Connection (Sysmon EID 3)
+id: 2c7f3f1d-1f7e-4f3c-9f61-2726320161aa
+status: test
+description: |
+  Detects any network connection initiated by IMEWDBLD.exe via Sysmon Event ID 3.
+  IMEWDBLD.exe is part of the East Asian Microsoft IME stack and handles IME dictionary
+  operations. While Microsoft ships periodic IME dictionary updates (e.g., “trending words”),
+  unexpected outbound network activity from IMEWDBLD.exe is uncommon and should be investigated
+  (destination host/IP, ports, reputation) to rule out LOLBIN abuse or masquerading.
+author: Mohamed Hanii
+date: 2025-10-02
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/IMEWDBLD/
+  - https://www.manageengine.com/uk/log-management/detection-rules/network_connection_initiated_by_imewdbld_exe.html
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_image:
+    Image|endswith: '\imewdbld.exe'
+
+  # Fire on any network connection by IMEWDBLD.exe
+  condition: sel_eid3 and sel_image 
+
+falsepositives:
+  - Very rare as it's not normal to see this LOLbin doing any internet connction ( internal & external ).
+level: high

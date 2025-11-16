@@ -1,0 +1,38 @@
+title: CNC-E-2726320-154-FTP.exe Network Connection (Sysmon EID 3)
+id: 34f2b2b0-2b8a-4b92-9cb1-2726320154aa
+status: test
+description: |
+  Detects the legacy Windows FTP client (ftp.exe) establishing network connections observed by
+  Sysmon Event ID 3. The built-in ftp.exe is not typically used heavily by administrators in modern 
+  environments; any outbound connections from ftp.exe warrant review for potential ingress/egress activity.
+  IMP Note : ftp.exe uses plain text username and pasword so even it's not used by attackers , it may not be used by the enterprise admin.
+author: Mohamed Hanii
+date: 2025-10-02
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Ftp/
+  - https://learn.microsoft.com/en-us/answers/questions/1856771/is-the-ftp-exe-no-longer-supported?utm_source=chatgpt.com
+  - https://win10.io/article/System-EXE-Files/ftp.html
+  - https://www.huntress.com/blog/exposing-data-exfiltration-lolbin-ttp-binaries
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_image:
+    Image|endswith: '\ftp.exe'
+
+  condition: sel_eid3 
+
+falsepositives:
+  - Environments where administrators or legacy scripts legitimately use ftp.exe to connect to internal or approved FTP/FTPS servers.
+  - Automated packaging/deployment or data exchange workflows that still rely on ftp.exe.
+  - Tuning tip: if ftp.exe is used legitimately, allow-list known scripts, service accounts, and approved FTP endpoints (hostnames/IPs) to reduce noise.
+  - Allow-list known batch jobs and internal FTP hosts used by IT; everything else is suspicious because ftp.exe is rarely needed today.
+level: high

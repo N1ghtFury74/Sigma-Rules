@@ -1,0 +1,80 @@
+title: CNC-E-2726320-176-Shimgvw.dll ImageView_Fullscreen URL → INetCache (Proc Creation)
+id: 3c4d5e6f-cccc-42d7-9a33-2726320176aa
+status: test
+description: |
+  Detects `rundll32.exe` invoking **Shimgvw.dll** (Windows Shell Image Viewer)
+  with the **ImageView_Fullscreen** export and a **URL** (any token containing `://`).
+  As documented by LOLBAS and researchers, the call pattern:
+    rundll32.exe C:\Windows\System32\shimgvw.dll,ImageView_Fullscreen <http/https URL>
+  (also valid with entrypoint **ImageView_FullscreenA**) makes the image viewer path
+  **download the remote resource into the user’s INetCache** without executing it —
+  a quiet **Ingress Tool Transfer (T1105)** via a Microsoft-signed DLL.
+  
+  Background:
+  • **Shimgvw.dll** is the legacy Shell Image/“Windows Picture and Fax” viewer engine that
+    can be launched through `rundll32` with `ImageView_Fullscreen` to display images.
+    When passed an **HTTP/HTTPS URL**, it uses the Windows web stack and writes the fetched
+    file into **INetCache**. This is cataloged by LOLBAS and replicated in community PoCs.
+  • This rule keys on **process creation** (Sysmon EID 1 / Sec 4688). For stronger signal,
+    correlate with **file writes** under the user’s INetCache and any **follow-on execution**
+    sourced from that cache.
+author: Mohamed Hanii
+date: 2025-10-08
+references:
+  - https://lolbas-project.github.io/lolbas/Libraries/Scrobj/                         
+  - https://mobile.twitter.com/eral4m/status/1479106975967240209                      
+  - https://nasbench.medium.com/a-deep-dive-into-rundll32-exe-642344b41e90
+  - https://detection.fyi/elastic/detection-rules/windows/defense_evasion_unusual_network_connection_via_rundll32/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---- Sysmon (EID 1) ----
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_host:
+    Image|endswith: '\rundll32.exe'
+  sel_sysmon_host_ofn:                 
+    OriginalFileName: 'RUNDLL32.EXE'
+  sel_sysmon_shimgvw:
+    CommandLine|contains:
+      - 'shimgvw.dll,ImageView_Fullscreen'
+  sel_sysmon_url:
+    CommandLine|contains:
+      - '://'
+      - 'http'
+      - 'https'
+      - 'ftp'
+
+  # ---- Windows Security (EID 4688) ----
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_host:
+    NewProcessName|endswith: '\rundll32.exe'
+  sel_4688_shimgvw:
+    ProcessCommandLine|contains:
+      - 'shimgvw.dll,ImageView_Fullscreen'
+  sel_4688_url:
+    ProcessCommandLine|contains:
+      - '://'
+      - 'http'
+      - 'https'
+      - 'ftp'
+
+  # Fire when rundll32 calls shimgvw ImageView_Fullscreen with a URL
+  condition: 
+    ( sel_sysmon_base and ( sel_sysmon_host or sel_sysmon_host_ofn ) and sel_sysmon_shimgvw and sel_sysmon_url )
+    or
+    ( sel_4688_base and sel_4688_host and sel_4688_shimgvw and sel_4688_url )
+
+falsepositives:
+  - Legacy/intranet image viewing : rare workflows that open images by URL (e.g., old CMS/helpdesk portals) may legitimately trigger this viewer path.
+  - Automation/QA rigs : scripted UI tests that exercise Shimgvw with remote images.
+  - Security testing/sandboxes : detonation frameworks probing LOLBAS behaviors against benign URLs.
+
+level: high

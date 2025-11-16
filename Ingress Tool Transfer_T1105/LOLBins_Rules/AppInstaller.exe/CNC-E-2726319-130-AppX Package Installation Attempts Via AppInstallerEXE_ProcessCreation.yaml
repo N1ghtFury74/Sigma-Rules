@@ -1,0 +1,61 @@
+title: CNC_AppInstaller.exe_ProcessCreaion
+status: test
+description: |
+  Detects usage of the "ms-appinstaller" protocol handler via command line to potentially download arbitrary files via AppInstaller.exe.
+  Downloads are typically staged under:
+  C:\Users\<username>\AppData\Local\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\AC\INetCache\<RANDOM-8-CHAR-DIR>
+author: Mohamed Hanii
+date: 2025-09-26
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/AppInstaller/
+  - https://www.ultimatewindowssecurity.com/securitylog/encyclopedia/event.aspx?eventID=4688
+  - https://www.ultimatewindowssecurity.com/securitylog/encyclopedia/event.aspx?eventid=90001
+  - https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4688
+  - https://attack.mitre.org/techniques/T1105/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+  - attack.t1218
+  - attack.execution
+  - attack.defense_evasion
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---- Windows Security 4688 (native field names) ----
+  sel_4688_base:
+    EventID: 4688
+    # Requires "Include command line in process creation events" (GPO)
+    ProcessCommandLine|contains|all:
+      - 'ms-appinstaller://?source='
+      - 'http'
+  sel_scope_opt_4688:
+    # New Process Name = child; Creator Process Name = parent
+    NewProcessName|endswith:
+      - '\AppInstaller.exe'
+    CreatorProcessName|endswith:
+      - '\explorer.exe'
+      - '\cmd.exe'
+      - '\powershell.exe'
+
+  # ---- Sysmon Event ID 1 (standard Sigma field names) ----
+  sel_sysmon_base:
+    EventID: 1
+    CommandLine|contains|all:
+      - 'ms-appinstaller://?source='
+      - 'http'
+  sel_scope_opt_sysmon:
+    Image|endswith:
+      - '\AppInstaller.exe'
+    ParentImage|endswith:
+      - '\explorer.exe'
+      - '\cmd.exe'
+      - '\powershell.exe'
+
+  # Require base signal (either source) and at least one scope selector
+  condition: (sel_4688_base or sel_sysmon_base) or (1 of sel_scope_opt_*)
+falsepositives:
+  - Legitimate enterprise deployments using AppInstaller/MSIX via ms-appinstaller protocol
+  - IT packaging workflows that fetch or stage content via AppInstaller
+level: high

@@ -1,0 +1,35 @@
+title: CNC-E-2726320-302-Visio Unusual Network Connection (Sysmon EID 3 & 22)
+id: 2726320-302-visio-net
+status: test
+description: |
+  Flags **outbound network connections** or **DNS lookups** attributed to **Visio.exe**. By design, **Visio.exe** does not initiate network connections 
+  or DNS queries. Any network activity from **Visio.exe** (whether direct network connections—**Event ID 3**—or DNS lookups—**Event ID 22**) is unusual 
+  and warrants investigation. This could indicate potential misuse, compromise, or misattribution, especially when correlated with suspicious parent 
+  processes or command-line arguments.
+  These event IDs should be further investigated when observed with **Visio.exe**, as they are atypical for this binary. Correlate with subsequent 
+  file downloads in **Downloads** or **INetCache**, and check the destination for unusual or untrusted domains.
+author: Mohamed Hanii
+date: 2025-10-14
+references:
+  - https://support.microsoft.com/en-us/office/command-line-switches-for-microsoft-visio-2010-f1de9af3-8368-4ef0-9a2f-25d430ec5576
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/Visio/
+tags:
+  - attack.command_and_control
+  - attack.t1105
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  selection_Eid:
+    EventID:
+      - 3  # Network Connection
+      - 22 # DNS Query
+  selection_img:
+    Image|endswith: '\Visio.exe'
+  condition: all of selection* 
+falsepositives:
+  - Legitimate use where Visio.exe is used to access or open remote files, such as documents stored on SharePoint, network drives, or  other remote file systems. This could include accessing files via **UNC paths** (e.g., \\server\share\file.vsdx) or SharePoint URLs.
+level: high

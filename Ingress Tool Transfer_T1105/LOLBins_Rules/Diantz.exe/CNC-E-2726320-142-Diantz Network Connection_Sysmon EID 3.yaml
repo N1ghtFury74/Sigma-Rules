@@ -1,0 +1,50 @@
+title: CNC-E-2726320-142-Diantz Network Connection to HTTP(S) Ports (Sysmon EID 3)
+id: 5c8e1f4f-7f21-4a1a-bc42-2726320142aa
+status: test
+description: |
+  Detects Diantz/Makecab (diantz.exe) establishing network connections on ports 80 or 443.
+  While diantz/makecab itself isn’t an HTTP client, it accepts remote paths as input:
+    - SMB UNC: \\server\share\file.exe → Windows fetches over TCP 445; Diantz writes a local .cab.
+    - WebDAV UNC: \\host\DavWWWRoot\path\file.exe or \\host@SSL\DavWWWRoot\path\file.exe → WebDAV Redirector pulls over HTTP/HTTPS (80/443); Diantz writes a local .cab.
+  LOLBAS documents a “download and compress to CAB” use case (T1105). Seeing diantz.exe with outbound 80/443 may
+  indicate WebDAV-based fetch-and-pack activity that warrants investigation.
+author: Mohamed Hanii
+date: 2025-10-02
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Diantz/
+  - https://lolbas-project.github.io/lolbas/Binaries/Makecab/
+  - https://strontic.github.io/xcyclopedia/library/diantz.exe-0421656128.html
+  - https://learn.microsoft.com/windows/win32/cmpapi/makecab-exe
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_image:
+    Image|endswith: '\diantz.exe'
+  sel_http_ports:
+    DestinationPort:
+      - 80
+      - 443
+      - 445
+
+  # Fire when Sysmon NetworkConnect (3) is attributed to diantz.exe and targets HTTP(S) ports
+  condition: ( sel_eid3 and sel_image ) or sel_http_ports
+
+falsepositives:
+  - Administrative packaging tasks that fetch a file (e.g., via WebDAV/SMB published shares) and save it as a .cab using diantz/makecab.
+  - Build/packaging workflows: bundling files into CABs (single file or via DDF).
+  - Driver/deployment scenarios: .cab distribution/handling by Windows or deployment tooling.
+  - MSI/setup flows: Windows Installer interacting with external CABs.
+  # Tuning tips:
+  # - Allow-list known internal WebDAV/SharePoint hosts or packaging servers.
+  # - Consider pairing with process creation telemetry for diantz.exe and command-line context to confirm source paths (\\host@SSL\DavWWWRoot\..., etc.).
+
+level: high

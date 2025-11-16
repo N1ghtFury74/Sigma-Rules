@@ -1,0 +1,49 @@
+title: CNC-E-2726320-174B-msedge_proxy Network Connection (Sysmon EID 3)
+id: 9c5c8e77-3db9-4f51-b1fb-2726320174bb
+status: test
+description: |
+  Flags any network connections initiated by the Microsoft Edge helper
+  `msedge_proxy.exe` (the launcher used for Edge “installed sites” / PWAs and
+  website shortcuts). This binary is also listed in LOLBAS with download and
+  proxy-execution behaviors, so seeing outbound connections can indicate
+  Ingress Tool Transfer (T1105) or related abuse. However, in environments that
+  use Edge PWAs or deploy website shortcuts at scale, `msedge_proxy.exe`
+  regularly appears in Start-menu/desktop shortcut targets and may generate
+  frequent benign connections. Prioritize unknown/non-corporate destinations,
+  non-standard binary paths, or suspicious command-lines (e.g., raw URL,
+  `--gpu-launcher`).
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/msedge_proxy/        
+  - https://www.thurrott.com/windows/windows-10/222790/microsoft-edge-is-getting-new-pwa-features-on-windows-10
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_image:
+    Image|endswith: '\msedge_proxy.exe'
+
+  # Fire on any outbound network connection attributed to msedge_proxy.exe
+  condition: sel_eid3 and sel_image
+
+falsepositives:
+  - Legitimate Edge PWA/website shortcuts: Start-menu or desktop shortcuts created by Edge (or management tooling) use msedge_proxy.exe to launch app windows; routine browsing to sanctioned app domains will appear here.
+  - Enterprise deployment flows: Intune/packaging that installs PWAs or URL shortcuts en masse will drive connections during provisioning or first-run.
+  - User activity: Users launching installed web apps (Teams, Outlook, internal PWAs) cause normal web traffic from msedge_proxy.exe.
+  - Tuning guidance:
+      - Allow-list corporate PWA/website domains and feed/update hosts.
+      - Suppress when the parent is explorer.exe and the command line (from EID 1 / 4688)
+        includes --app-id or --app= to approved domains.
+      - Raise severity when the binary path is non-standard (not under Program Files\Microsoft\Edge\Application),
+        when command line includes --gpu-launcher or a raw URL, or when you observe a write→execute
+        chain from a user-writable location immediately after the connection.
+level: low

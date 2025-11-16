@@ -1,0 +1,56 @@
+title: CNC-E-2726320-143-Makecab Download and CAB Creation (Process Creation)
+id: 185d7418-f250-42d0-b72e-0c8b70661e93
+status: experimental
+description: |
+  Detects Makecab (makecab.exe) used to fetch a remote file via a UNC path and
+  compress it into a local .cab archive. Adversaries can abuse SMB/WebDAV sources
+  to retrieve content and have makecab.exe write a CAB locally OR other file extensions so main focus on webshare detection (T1105).
+author: Mohamed Hanii
+date: 2025-10-06
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Makecab/
+  - https://learn.microsoft.com/windows/win32/cmpapi/makecab-exe
+  - https://ss64.com/nt/makecab-directives.html
+tags:
+  - attack.command_and_control
+  - attack.t1105
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # -------- Sysmon (Event ID 1) --------
+  sel_sysmon_eid1:
+    EventID: 1
+  sel_sysmon_image:
+    Image|endswith: '\makecab.exe'
+  sel_sysmon_ofn:
+    OriginalFileName: 'MAKECAB.EXE'
+  sel_sysmon_cli_markers:
+    CommandLine|contains:
+      - '\\\\'  # UNC source (SMB/WebDAV)
+      - '\DavWWWRoot' 
+      - '@SSL'
+  # -------- Windows Security (Event ID 4688) --------
+  sel_4688_eid:
+    EventID: 4688
+  sel_4688_proc:
+    NewProcessName|endswith: '\makecab.exe'
+  sel_4688_cli_markers:
+    ProcessCommandLine|contains:
+      - '\\\\'  # UNC source (SMB/WebDAV)
+      - '\DavWWWRoot' 
+      - '@SSL'
+
+  # Fire when makecab.exe runs and CLI shows remote UNC source 
+  condition: 
+    (sel_sysmon_eid1 and (sel_sysmon_image or sel_sysmon_ofn) and sel_sysmon_cli_markers)
+    or 
+    (sel_4688_eid and sel_4688_proc and sel_4688_cli_markers)
+
+falsepositives:
+  - Administrative packaging tasks that build CABs from files on internal shares (SMB/WebDAV).
+  - Build/deployment workflows bundling files into CABs (single file or via DDF).
+  - Driver or Windows component distribution using CABs; MSI/setup processes interacting with external CABs.
+level: high

@@ -1,0 +1,41 @@
+title: CNC-E-2726320-202-MsoHtmEd Outbound Network Activity (Sysmon EID 3 / EID 22)
+id: 2d7b8a0d-5c8d-4e34-8c5c-2726320202aa
+status: test
+description: |
+  Flags DNS (EID 22) and network connections (EID 3) initiated by MsoHtmEd.exe. Normal use is
+  local HTML viewing/printing; URL-driven fetching is possible and has been abused as an Ingress
+  Tool Transfer path that stages content in INetCache. Any external egress to non-approved domains
+  warrants investigation and correlation with process creation and cache writes.
+author: Mohamed Hanii
+date: 2025-10-10
+references:
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/MsoHtmEd/            
+  - https://www.bleepingcomputer.com/news/security/hackers-can-abuse-microsoft-office-executables-to-download-malware/  
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_net_eid3:
+    EventID: 3
+  sel_proc_img:
+    Image|endswith: '\msohtmed.exe'
+
+  # Optional DNS lookups (if you also ingest Sysmon DNS events)
+  sel_dns_eid22:
+    EventID: 22
+  sel_dns_proc:
+    Image|endswith: '\msohtmed.exe'
+
+  condition: ( sel_net_eid3 and sel_proc_img ) or ( sel_dns_eid22 and sel_dns_proc )
+
+
+falsepositives:
+  - Users opening/printing HTML stored on approved intranet/tenant endpoints (SharePoint/OneDrive) that trigger background fetches.
+  - Legacy workflows where MSOHTMED is registered for shell “Print” and content resides on internal web servers.
+level: medium

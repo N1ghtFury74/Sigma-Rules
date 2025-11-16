@@ -1,0 +1,60 @@
+title: CNC-E-2726320-180-PresentationHost URL in Command Line (Process Creation)
+id: 8d2c8a49-9d39-4f1a-9f3e-2726320180aa
+status: test
+description: |
+  Detects PresentationHost.exe started with a remote URL (http/https/ftp) on the command line.
+  PresentationHost is the WPF Host for XBAP/loose XAML and is registered as the shell/MIME
+  handler; invoking it with a REMOTE URL can download content into INetCache (LOLBAS), which
+  aligns with Ingress Tool Transfer (T1105). Modern browsers dropped XBAP, so remote use is
+  legacy/rare and should be reviewed.
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Presentationhost/            
+  - https://learn.microsoft.com/en-us/dotnet/desktop/wpf/app-development/wpf-host-presentationhost-exe
+  - https://oddvar.moe/2017/12/21/applocker-case-study-how-insecure-is-it-really-part-2/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+  - attack.t1218
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # -------- Sysmon (EID 1) --------
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_proc:
+    - Image|endswith: '\PresentationHost.exe'
+    - OriginalFileName: 'PresentationHost.exe'
+  sel_sysmon_url:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+
+  # -------- Windows Security (EID 4688) --------
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_proc:
+    NewProcessName|endswith: '\PresentationHost.exe'
+  sel_4688_url:
+    ProcessCommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+
+  # Fire when PresentationHost is launched with a URL in the CLI
+  condition: 
+    ( sel_sysmon_base and sel_sysmon_proc and sel_sysmon_url ) 
+    or 
+    ( sel_4688_base and sel_4688_proc and sel_4688_url )
+
+
+falsepositives:
+  - Legacy/approved XBAP or intranet WPF apps legitimately opened via URL (e.g., IE/Explorer launching PresentationHost for sanctioned content).
+  - Developer/debug workflows launching remote XBAP/XAML during testing.
+  - Tuning: allow-list known intranet hosts/paths if you still run XBAP; scrutinize internet destinations and unusual parents.
+level: high

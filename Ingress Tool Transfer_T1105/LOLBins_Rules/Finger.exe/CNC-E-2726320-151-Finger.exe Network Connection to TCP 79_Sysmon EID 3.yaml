@@ -1,0 +1,40 @@
+title: CNC-E-2726320-151-Finger.exe Network Connection to TCP/79 (Sysmon EID 3)
+id: 9f4b1d7b-6f2b-4c6a-9f51-2726320151aa
+status: test
+description: |
+  Detects the legacy Finger client (finger.exe) establishing a network connection observed by
+  Sysmon Event ID 3 to TCP port 79 (Finger protocol). Finger is a deprecated protocol; any use—
+  even by administrators—should be considered suspicious and investigated. Validate whether the
+  connection targets an internal host or an external destination and whether there is a legitimate
+  administrative need.
+author: Mohamed Hanii
+date: 2025-10-02
+references:
+    - https://www.huntress.com/blog/cant-touch-this-data-exfiltration-via-finger
+    - https://lolbas-project.github.io/lolbas/Binaries/Finger/
+    - https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2012-r2-and-2012/ff961508(v=ws.11)
+tags:
+  - attack.command_and_control
+  - attack.t1105
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_image:
+    Image|endswith: '\finger.exe'
+  sel_port79:
+    DestinationPort: 79
+
+  condition: sel_eid3 and sel_image or ( not sel_port79 )
+
+falsepositives:
+  - Rare administrative troubleshooting or testing of legacy services (should be exceptional).
+  # Tuning tips:
+  # - Check if the destination is external or unapproved; prefer alerting on outbound to the internet.
+  # - Correlate with process creation telemetry (cmdline, parent process) and user context to verify intent.
+level: high

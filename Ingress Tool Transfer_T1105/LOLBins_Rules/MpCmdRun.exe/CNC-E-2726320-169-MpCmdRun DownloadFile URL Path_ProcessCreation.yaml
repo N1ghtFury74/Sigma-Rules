@@ -1,0 +1,76 @@
+title: CNC-E-2726320-168-MpCmdRun DownloadFile URL Path (Process Creation)
+id: 9d7e3f4a-2a6e-4f2c-9a77-2726320168aa
+status: test
+description: |
+  Detects Microsoft Defender’s command-line utility (MpCmdRun.exe) invoked to download a file
+  to a specified path using its built-in parameters (Ingress Tool Transfer – T1105). The rule
+  looks for **DownloadFile + url + path** switches (dash **-** or slash **/** forms) together
+  with an HTTP/HTTPS URL in the command line.
+  Triage tip: pay close attention to **non-SYSTEM / non-LOCAL SERVICE** users launching
+  MpCmdRun.exe, as this can indicate abuse outside normal Defender operations.
+author: Mohamed Hanii
+date: 2025-10-06
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/MpCmdRun/
+  - https://learn.microsoft.com/microsoft-defender-antivirus/command-line-arguments-microsoft-defender-antivirus
+  - https://x.com/NotMedic/status/1301506813242867720
+  - https://blog.didierstevens.com/2020/09/09/quickpost-downloading-files-with-windows-defender-user-agent-string/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---------------- Sysmon (Event ID 1) ----------------
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_img:
+    Image|endswith: '\MpCmdRun.exe'
+  sel_sysmon_ofn:
+    OriginalFileName: 'MpCmdRun.exe'
+
+  # Require all three switches (dash form)
+  sel_sysmon_cli_dash_all:
+    CommandLine|contains|all:
+      - '-DownloadFile'
+      - '-url'
+      - '-path'
+  # Require all three switches (slash form)
+  sel_sysmon_cli_slash_all:
+    CommandLine|contains|all:
+      - '/DownloadFile'
+      - '/url'
+      - '/path'
+
+
+  # ---------------- Windows Security (Event ID 4688) ----------------
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_proc:
+    NewProcessName|endswith: '\MpCmdRun.exe'
+
+  sel_4688_cli_dash_all:
+    ProcessCommandLine|contains|all:
+      - '-DownloadFile'
+      - '-url'
+      - '-path'
+  sel_4688_cli_slash_all:
+    ProcessCommandLine|contains|all:
+      - '/DownloadFile'
+      - '/url'
+      - '/path'
+
+  # Fire when MpCmdRun.exe is executed with DownloadFile+url+path (dash or slash) and a URL is present
+  condition: 
+    ( sel_sysmon_base and (sel_sysmon_img or sel_sysmon_ofn) and (sel_sysmon_cli_dash_all or sel_sysmon_cli_slash_all) ) 
+    or 
+    ( sel_4688_base and sel_4688_proc and (sel_4688_cli_dash_all or sel_4688_cli_slash_all) )
+
+
+falsepositives:
+  - Legitimate Defender admin or diagnostic workflows using MpCmdRun to download approved content.
+  - Enterprise scripts that intentionally leverage MpCmdRun’s DownloadFile for internal repositories.
+level: high

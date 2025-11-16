@@ -1,0 +1,28 @@
+title: CNC-E-2726319-130-AppX Package Installation Attempts Via AppInstallerEXE
+status: test
+author: Mohamed Hanii
+description: |
+  Detects DNS queries made by "AppInstaller.EXE". The AppInstaller is the default handler for the "ms-appinstaller" URI. It attempts to load/install a package from the referenced URL
+references:
+  - https://twitter.com/notwhickey/status/1333900137232523264
+  - https://lolbas-project.github.io/lolbas/Binaries/AppInstaller/
+tags:
+  - attack.command-and-control
+  - attack.t1105
+  - sysmon
+  - Outside Rule
+logsource:
+  category: Network Traffic Content
+  product: windows
+  service: sysmon
+detection:
+  dns_query:
+    EventID: 22
+  selection:
+    Image|startswith: C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_
+    Image|endswith: \AppInstaller.exe
+  condition: dns_query and selection
+falsepositives:
+  - Legitimate enterprise deployments using AppInstaller/MSIX via ms-appinstaller protocol
+  - IT packaging workflows that fetch or stage content via AppInstaller
+level: medium

@@ -1,0 +1,35 @@
+title: CNC-E-2726320-175-Xwizard Egress (HTTP/S/FTP) — Sysmon Network (EID 3)
+id: a1b2c3d4-5e6f-4a1a-8d7c-2726320175aa
+status: test
+description: |
+  Supports the /z+URL analytic by flagging outbound network connections made by Xwizard.exe
+  to HTTP/S or FTP endpoints. In normal estates Xwizard’s network use is limited to trusted
+  RemoteApp/Workspace feeds; unexpected Internet egress alongside /z usage may indicate
+  INetCache download abuse (T1105). Expect noise if admins legitimately manage Workspaces.
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Xwizard/         
+  - https://www.hexacorn.com/blog/2017/07/31/the-wizard-of-x-oppa-plugx-style/  
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_image:
+    Image|endswith: '\xwizard.exe'
+
+  condition: sel_eid3 and sel_image 
+
+falsepositives:
+  - Legitimate RemoteApp/Workspace enrollment/refresh contacting your approved RD Web feed.
+  - Enterprise automation invoking Xwizard for Workspace tasks (can be chatty).
+  - Tuning tips: allow-list your RD feed hosts; investigate Internet destinations and correlate with preceding /z+URL process events and INetCache writes.
+level: high

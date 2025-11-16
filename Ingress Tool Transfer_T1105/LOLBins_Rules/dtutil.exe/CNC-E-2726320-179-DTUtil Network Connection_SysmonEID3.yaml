@@ -1,0 +1,44 @@
+title: CNC-E-2726320-179-DTUtil Network Connection (Sysmon EID 3)
+id: 7c1c8a2f-5f3d-4ef4-9388-2726320179aa
+status: test
+description: |
+  Flags outbound connections made by **dtutil.exe**, the SQL Server Integration Services (SSIS)
+  command-line utility for managing packages (copy/move/delete/verify) across SSIS stores
+  (File system, SSIS Package Store, and SQL Server **msdb**). In normal admin workflows,
+  `dtutil` talks to **SQL Server** over TDS (commonly TCP 1433/instance port), to the **SSIS
+  service** control plane (DCOM/RPC — TCP 135 + dynamic RPC), and to **SMB** (TCP 445) when
+  UNC paths are used for package files. Connections to **unexpected hosts** or **non-SSIS/SQL**
+  services can indicate staging or “living-off-the-land” file transfer. :contentReference[oaicite:0]{index=0}
+  
+  Note: `dtutil` is present where SSIS/SQL tooling is installed and can copy packages between stores
+  or even copy arbitrary files when `/FILE ... /COPY FILE;...` is used (documented as a LOLBAS
+  behavior), which elevates its value for **Ingress Tool Transfer (T1105)** or lateral transfer when
+  misused. Prioritize unexpected egress from endpoints that aren’t part of your SSIS/DBA fleet. 
+author: Mohamed Hanii
+date: 2025-10-08
+references:
+  - https://learn.microsoft.com/en-us/sql/integration-services/dtutil-utility?view=sql-server-ver16
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/Dtutil/                                                   
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_image:
+    Image|endswith: '\dtutil.exe'
+
+  condition: sel_eid3 and sel_image # and sel_ports  # <-- uncomment to scope by ports
+
+falsepositives:
+  - Expected network behavior (when legit):
+      - To SQL Server: when `/SourceServer` or /DestServer is specified, `dtutil.exe` connects to SQL Server over TDS (typically TCP 1433 for the default instance, or your named-instance port). 
+      - To file shares: when package paths are UNC, `dtutil.exe` uses SMB (TCP 445) to read/write package files.
+  - Legit SSIS/DBA operations: routine package copy/move/backup/migration between File system ↔ SSIS Package Store ↔ SQL Server msdb (expect TDS to approved SQL hosts and SMB to approved file servers), including cross-server migrations where /SourceServer and /DestServer point to sanctioned instances.
+level: high

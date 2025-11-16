@@ -1,0 +1,36 @@
+title: CNC-E-2726320-181-PresentationHost Network Connection (Sysmon EID 3)
+id: 4e7b5e2a-4a7c-4a6c-9d2f-2726320181aa
+status: test
+description: |
+  Detects any network connection attributed to PresentationHost.exe. PresentationHost normally
+  hosts local/intranet WPF content and is historically launched by IE/Explorer for XBAP/XAML.
+  It is not commonly observed making arbitrary outbound connections in modern environments;
+  however, LOLBAS documents that supplying a remote URL can fetch content into INetCache,
+  so network egress from PresentationHost may indicate T1105 activity and warrants review.
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Presentationhost/            
+  - https://learn.microsoft.com/en-us/dotnet/desktop/wpf/app-development/wpf-host-presentationhost-exe
+  - https://oddvar.moe/2017/12/21/applocker-case-study-how-insecure-is-it-really-part-2/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_image:
+    Image|endswith: '\PresentationHost.exe'
+  # Fire on any network connection from PresentationHost
+  condition: sel_eid3 and sel_image 
+
+
+falsepositives:
+  - Opening approved XBAP/XAML from intranet web servers (legacy line-of-business apps) can trigger connections.
+level: high

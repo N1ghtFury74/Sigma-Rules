@@ -1,0 +1,66 @@
+title: CNC-E-2726320-186-Replace.exe UNC/WebDAV Source with /A (Process Creation)
+id: 9b7a7b4c-6a1e-4b9e-9c86-2726320186aa
+status: test
+description: |
+  Detects Replace.exe invoked to pull from a **remote UNC path** (SMB or WebDAV UNC) while using
+  the **/A** switch (adds new files). Replace.exe is a built-in Windows file utility that replaces
+  or adds files in a destination folder; it has **no native HTTP/S client**. When pointed at
+  UNC sources it will copy via SMB (\\server\share\...) or the WebDAV mini-redirector when using
+  UNC forms like **\\host\DavWWWRoot\...** or **\\host@SSL\DavWWWRoot\...**. Adversaries can abuse
+  this to stage tools from remote shares (T1105) under the guise of a trusted binary.
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Replace/                          
+
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ------- Sysmon (Event ID 1) -------
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_id:
+    - Image|endswith: '\replace.exe'
+    - OriginalFileName: 'REPLACE.EXE'
+  sel_sysmon_unc:
+    CommandLine|contains:
+      - '\\\\'          # generic UNC marker
+      - 'DavWWWRoot'    # WebDAV UNC marker
+      - '@SSL'          # HTTPS WebDAV UNC marker
+  sel_sysmon_add:
+    CommandLine|contains:
+      - ' /a'
+     
+
+  # ------- Windows Security (Event ID 4688) -------
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_proc:
+    NewProcessName|endswith: '\replace.exe'
+  sel_4688_unc:
+    ProcessCommandLine|contains:
+      - '\\\\'
+      - 'DavWWWRoot'
+      - '@SSL'
+  sel_4688_add:
+    ProcessCommandLine|contains:
+      - ' /a'
+
+  # Fire when Replace.exe is used with /A and a UNC/WebDAV source or target
+  condition: (
+      sel_sysmon_base and sel_sysmon_id and sel_sysmon_unc and sel_sysmon_add
+    ) or (
+      sel_4688_base and sel_4688_proc and sel_4688_unc and sel_4688_add
+    )
+
+
+falsepositives:
+  - Legitimate admin/packaging tasks that add or replace configuration/content files from **internal SMB shares**.
+  - Enterprise deployment tools or legacy scripts that rely on Replace.exe with **/A** against sanctioned UNC paths.
+level: high

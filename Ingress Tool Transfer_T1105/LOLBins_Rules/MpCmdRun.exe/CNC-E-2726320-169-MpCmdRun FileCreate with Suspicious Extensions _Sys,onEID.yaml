@@ -1,0 +1,75 @@
+title: CNC-E-2726320-169-MpCmdRun FileCreate with Suspicious Extensions (Sysmon EID 11)
+id: 1a2f3e4b-7c9d-4b8a-9f10-2726320169aa
+status: test
+description: |
+  Detects Microsoft Defender’s command-line utility (MpCmdRun.exe) creating files with potentially
+  suspicious extensions. MpCmdRun is typically observed producing **.log** and (in some workflows)
+  **.cab** artifacts; other executable/script/archive/web extensions may indicate abuse for ingress
+  tool transfer or staging.
+author: Mohamed Hanii
+date: 2025-10-06
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/MpCmdRun/
+  - https://learn.microsoft.com/microsoft-defender-antivirus/command-line-arguments-microsoft-defender-antivirus
+tags:
+  - attack.t1105
+  - attack.command_and_control
+  - attack.collection
+
+logsource:
+  product: windows
+  category: file_event
+  service: sysmon
+
+detection:
+  sel_eid11:
+    EventID: 11
+  sel_proc_image:
+    Image|endswith: '\MpCmdRun.exe'
+  suspicious_ext:
+    TargetFilename|endswith:
+      - ".exe"
+      - ".dll"
+      - ".zip"
+      - ".rar"
+      - ".bat"
+      - ".ps1"
+      - ".vbs"
+      - ".wsh"
+      - ".js"
+      - ".vbe"
+      - ".pif"
+      - ".scr"
+      - ".cmd"
+      - ".cpl"
+      - ".7z"
+      - ".asax"
+      - ".ashx"
+      - ".asmx"
+      - ".asp"
+      - ".aspx"
+      - ".cfm"
+      - ".cgi"
+      - ".chm"
+      - ".gif"
+      - ".jpeg"
+      - ".jpg"
+      - ".jsp"
+      - ".jspx"
+      - ".log"
+      - ".png"
+      - ".psm1"
+      - ".scf"
+      - ".sct"
+      - ".txt"
+      - ".war"
+      - ".wsf"
+      - ".xll"
+
+  # Fire when MpCmdRun.exe creates any file with the listed extensions
+  condition: sel_eid11 and sel_proc_image  and suspicious_ext
+
+falsepositives:
+  - Legitimate Defender activity writing files like **.log** (expected) and, in some scenarios, **.cab** files (e.g., diagnostic packages).
+  - Enterprise scripts that wrap MpCmdRun for sanctioned tasks and produce .log outputs in approved locations.
+level: high

@@ -1,0 +1,68 @@
+title: CNC-E-2726320-165-LDIFDE Import with URL Value-Spec (Process Creation)
+id: 2a6f9f44-9d30-4b08-9ac3-2726320165aa
+status: test
+description: |
+  Detects ldifde.exe launched in **import mode** with a file argument that includes URL
+  indicators (http/https/ftp). LDIFDE itself is an LDAP/LDAPS tool (no native HTTP client),
+  but LDIF files can embed URL value-specs (`attr :< http(s)://...`). When run with `-i -f`,
+  Windows will retrieve those URLs into INetCache as part of processing—creating a sneaky
+  download side-effect (see LOLBAS LDIFDE entry).
+author: Mohamed Hanii
+date: 2025-10-06
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Ldifde/
+  - https://www.rfc-editor.org/rfc/rfc2849
+  - https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2012-r2-and-2012/cc731033%28v%3Dws.11%29
+  - https://strontic.github.io/xcyclopedia/library/ldifde.exe-979DE101F5059CEC1D2C56967CA2BAC0.html
+tags:
+  - attack.command_and_control
+  - attack.t1105
+  - attack.credential_access
+  - attack.discovery
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ----- Sysmon (Event ID 1) -----
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_img:
+    Image|endswith: '\ldifde.exe'
+  sel_sysmon_ofn:
+    OriginalFileName: 'LDIFDE.EXE'
+  sel_sysmon_cli:
+    CommandLine|contains|all:
+      - ' -i'
+      - ' -f'
+  sel_sysmon_urls:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+
+  # ----- Windows Security (Event ID 4688) -----
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_proc:
+    NewProcessName|endswith: '\ldifde.exe'
+  sel_4688_cli:
+    ProcessCommandLine|contains|all:
+      - ' -i'
+      - ' -f'
+  sel_4688_urls:
+    ProcessCommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+
+  # Fire when ldifde.exe runs with -i and -f AND a URL indicator in args
+  condition: 
+    ( sel_sysmon_base and (sel_sysmon_img or sel_sysmon_ofn) and sel_sysmon_cli and sel_sysmon_urls ) 
+    or 
+    ( sel_4688_base and sel_4688_proc and sel_4688_cli and sel_4688_urls )
+
+falsepositives:
+  - ldifde.exe is a normal tool for Windows/AD administrators, mainly for bulk export/import of directory data and schema operations. 
+level: high

@@ -1,0 +1,48 @@
+title: CNC-E-2726320-183-Print.exe Network Egress (Sysmon EID 3)
+id: 7b8c1a5c-1a02-45aa-88c9-2726320183aa
+status: test
+description: |
+  Detects **any network connection** attributed to Print.exe. Print.exe is a local printing
+  utility (no native HTTP). Network flows typically occur only when the source path is a
+  remote UNC (SMB or WebDAV UNC like \\host\DavWWWRoot\...). SMB traffic (445/139) suggests
+  share access; HTTP/S (80/443) suggests WebDAV via the OS mini-redirector—not an internal
+  HTTP client in Print.exe. Investigate destinations outside approved file services.
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Print/    
+  - https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/print      
+  - https://lolbas-project.github.io/lolbas/Binaries/Print/                                     
+  - https://learn.microsoft.com/iis/publish/using-webdav/using-the-webdav-redirector           
+  - https://learn.microsoft.com/windows/win32/api/_webdav/                                     
+  - https://superuser.com/questions/1407747/what-does-unc-path-with-ssl-tucked-to-the-hostname-mean
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_image:
+    Image|endswith: '\print.exe'
+  web_ports:
+    DestinationPort:
+      - 80     # WebDAV over HTTP
+      - 443    # WebDAV over HTTPS
+  smb_ports:
+    DestinationPort:
+      - 445
+      - 139
+
+  # Alert on any egress from Print.exe; optionally constrain to SMB/Web ports
+  condition: sel_eid3 and sel_image and (web_ports or smb_ports)
+
+falsepositives:
+  - Printing from **internal** SMB shares or sanctioned WebDAV/SharePoint servers.
+  - Automated print workflows that read documents from remote file services.
+level: high

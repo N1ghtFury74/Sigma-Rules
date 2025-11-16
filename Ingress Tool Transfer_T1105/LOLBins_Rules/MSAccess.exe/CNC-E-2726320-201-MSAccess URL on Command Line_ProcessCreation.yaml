@@ -1,0 +1,61 @@
+title: CNC-E-2726320-201-MSAccess URL on Command Line (Process Creation)
+id: 9c2b2d3c-9d9b-4f54-9b2b-2726320201aa
+status: test
+description: |
+    Flags Microsoft Access (MSACCESS.EXE) launched with a remote URL on the command line (http/https/ftp). 
+    In normal usage, Access ( remotely pattern ) is started with a local file or UNC path
+    to a database (per Microsoft’s CLI reference), not a web URL. When invoked with a URL—especially
+    one can download the file into the user’s INetCache via the Windows
+    web stack, creating a quiet Ingress Tool Transfer (T1105) staging path (as documented by
+    LOLBAS and reporting on Office executables abused for downloads). Investigate the destination
+    domain and correlate with new files under INetCache and any follow-on execution from that
+    cache.
+author: Mohamed Hanii
+date: 2025-10-11
+references:
+  - https://support.microsoft.com/en-us/office/command-line-switches-for-microsoft-office-products-079164cd-4ef5-4178-b235-441737deb3a6
+  - https://www.bleepingcomputer.com/news/security/hackers-can-abuse-microsoft-office-executables-to-download-malware/
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/Msaccess/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---- Sysmon (EID 1) ----
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_img:
+    Image|endswith: '\MSACCESS.EXE'
+  sel_sysmon_ofn:
+    OriginalFileName: 'MSACCESS.EXE'
+  sel_sysmon_url:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+      - '://'
+
+  # ---- Windows Security (EID 4688) ----
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_img:
+    NewProcessName|endswith: '\MSACCESS.EXE'
+  sel_4688_url:
+    ProcessCommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+      - '://'
+
+  condition: 
+    (sel_sysmon_base and (sel_sysmon_img or sel_sysmon_ofn) and sel_sysmon_url)
+    or
+    (sel_4688_base and sel_4688_img and sel_4688_url)
+
+falsepositives:
+  - Rare , but can be IT automation or legacy launchers that intentionally invoke MSAccess with intranet URLs. Allow-list those parents/domains.
+level: high

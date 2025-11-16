@@ -1,0 +1,61 @@
+title: CNC-E-2726320-134-Cmd.exe Copy/Type to WebDAV (@SSL or \DavWWWRoot)
+id: 3d0a9f5a-1c2b-4e7d-9a1e-2726320134aa
+status: test
+description: |
+  Detects cmd.exe using 'copy' or 'type' together with WebDAV-style paths (@SSL or \DavWWWRoot),
+  which may indicate data movement to/from WebDAV shares (e.g., SharePoint/Internet-hosted WebDAV).
+  WebDAV is often exposed as \\host@SSL\DavWWWRoot\... on Windows via the WebDAV redirector.
+author: Mohamed Hanii
+date: 2025-10-01
+references:
+  - https://www.elastic.co/guide/en/security/8.19/binary-content-copy-via-cmd-exe.html
+  - https://lolbas-project.github.io/lolbas/Binaries/Cmd/
+  - https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-xp/bb490886(v=technet.10)?redirectedfrom=MSDN
+tags:
+  - attack.t1105
+  - attack.command_and_control
+  - attack.collection
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---------- Sysmon (Event ID 1) ----------
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_proc_ofn:
+    OriginalFileName: 'Cmd.Exe'
+  sel_sysmon_copytype:
+    CommandLine|contains:
+      - ' copy '
+      - ' type '
+  sel_sysmon_webdav:
+    CommandLine|contains:
+      - '@SSL'
+      - '\DavWWWRoot'
+      - '\\\\'   # UNC source (SMB/WebDAV)
+
+  # ---------- Windows Security (Event ID 4688) ----------
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_proc:
+    NewProcessName|endswith: '\cmd.exe'
+  sel_4688_copytype:
+    ProcessCommandLine|contains:
+      - ' copy '
+      - ' type '
+  sel_4688_webdav:
+    ProcessCommandLine|contains:
+      - '@SSL'
+      - '\DavWWWRoot'
+      - '\\\\'   # UNC source (SMB/WebDAV)
+
+  condition: 
+    (sel_sysmon_base and sel_sysmon_proc_ofn and sel_sysmon_copytype and sel_sysmon_webdav ) or 
+    ( sel_4688_base and sel_4688_proc and sel_4688_copytype and sel_4688_webdav )
+
+falsepositives:
+  - Legitimate copies from internal SMB shares (not WebDAV) or sanctioned use of WebDAV to corporate SharePoint/OneDrive.
+  - When **@SSL** and **\DavWWWRoot** appear for approved SharePoint/WebDAV paths, it may be normal. Verify the destination host: outbound connections to external servers should be investigated further (ownership, reputation, and business need).
+level: medium

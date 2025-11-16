@@ -1,0 +1,40 @@
+title: CNC-E-2726320-174-mshta Network Connection (Sysmon EID 3)
+id: 9d2f8c55-1a87-4e7a-9f10-2726320174aa
+status: test
+description: |
+  Detects any network connection initiated by mshta.exe. While mshta’s primary role is
+  executing HTA/Script content, adversaries abuse it to fetch remote payloads or scripts;
+  outbound connections (internal or external) from mshta should be investigated to confirm
+  destination and business need.
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Mshta/       # remote execution & download
+  - https://lolbas-project.github.io/lolbas/Binaries/Mshta/
+  - https://redcanary.com/threat-detection-report/trends/initial-access/
+  - https://redcanary.com/threat-detection-report/techniques/mshta/
+  - https://www.elastic.co/docs/reference/security/prebuilt-rules/rules/windows/defense_evasion_mshta_beacon
+  - https://help.fortinet.com/fsiem/Public_Resource_Access/7_2_3/rules/PH_RULE_Remotely_Hosted_HTA_File_Executed_Via_Mshta_EXE.htm
+tags:
+  - attack.t1105
+  - attack.command_and_control
+  - attack.t1218.005
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_image:
+    Image|endswith: '\mshta.exe'
+
+  # Fire on any mshta network connection
+  condition: sel_eid3 and sel_image
+
+falsepositives:
+  - Systems legitimately loading remote HTA/script content for internal admin workflows.
+  - Tuning: baseline approved internal hosts/domains; investigate internet-bound connections and unexpected parents (e.g., scripts).
+level: high

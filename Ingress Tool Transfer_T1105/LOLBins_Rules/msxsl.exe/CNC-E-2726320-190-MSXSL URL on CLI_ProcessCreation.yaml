@@ -1,0 +1,61 @@
+title: CNC-E-2726320-190A-msxsl URL on Command Line (Process Creation)
+id: 8a2cb1a7-8d0e-4d2f-8d37-2726320190aa
+status: test
+description: |
+  Detects msxsl.exe (Microsoft XSLT command-line transformer) launched with a remote URL
+  on the command line (http/https/ftp). Adversaries abuse msxsl to fetch remote XML/XSL and
+  write local output, enabling Ingress Tool Transfer (T1105) and scripted execution paths (T1220).
+  Legitimate use typically transforms local files; network sources are uncommon.
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/Msxsl/      
+  - http://digcode.com/posts/t2340/MSXSL-EXE-Microsoft-Command-Line-XSL-Transformation-Utility
+  - https://redcanary.com/blog/threat-detection/detecting-msxsl-attacks/
+  - https://github.com/RonnieSalomonsen/Use-msxsl-to-download-file
+  
+tags:
+  - attack.t1105
+  - attack.command_and_control
+  - attack.t1220
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---- Sysmon (EID 1) ----
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_id:
+    - Image|endswith: '\msxsl.exe'
+    - OriginalFileName: 'msxsl.exe'
+  sel_sysmon_url:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+      - '://'
+
+  # ---- Windows Security (EID 4688) ----
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_proc:
+    NewProcessName|endswith: '\msxsl.exe'
+  sel_4688_url:
+    ProcessCommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+      - '://'
+
+  # Fire when msxsl.exe is started with a URL on the CLI
+  condition: (sel_sysmon_base and sel_sysmon_id and sel_sysmon_url) or (sel_4688_base and sel_4688_proc and sel_4688_url)
+
+falsepositives:
+  - Build and ETL hosts may legitimately reference remote XML/XSL resources over HTTP(S) for batch data transformations. 
+    It is important to note that many valid use cases for these tools involve processing large datasets, which typically necessitates the use 
+    of the -o argument to specify an output file. When this argument is omitted, the output defaults to standard output—a method that is generally 
+    impractical for high-volume operations. Consequently, executions lacking the -o parameter may appear anomalous or suspicious, despite being 
+    potentially benign, thereby increasing the likelihood of false positives in detection scenarios.
+level: high

@@ -1,0 +1,135 @@
+title: CNC-E-2726320-138-ConfigSecurityPolicy Network Transfer (Proc Creation)
+id: 1f0f6176-6482-4027-b151-00071af39d7e
+status: test
+description: |
+  Detects ConfigSecurityPolicy.exe (Windows Defender/Endpoint Manager component) launched
+  with arguments that indicate potential ingress/egress transfer: URLs in the command
+  line (http/https/ftp), direct IP literals, or download-like target extensions.
+  While the binary manages Defender/MDM settings, it can be abused to fetch or upload
+  remote content.
+author: Mohamed Hanii
+date: 2025-10-01
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/ConfigSecurityPolicy/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+  - attack.exfiltration
+  - attack.t1567
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---------------- Sysmon (Event ID 1) ----------------
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_process:
+    - Image|endswith: '\ConfigSecurityPolicy.exe'
+    - OriginalFileName: 'ConfigSecurityPolicy.exe'
+  sel_sysmon_url:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+  sel_sysmon_malicious_extension:
+    # Heuristic: common payload extensions seen in downloads 
+    CommandLine|contains:
+      - ".exe"
+      - ".dll"
+      - ".zip"
+      - ".rar"
+      - ".bat"
+      - ".ps1"
+      - ".vbs"
+      - ".wsh"
+      - ".js"
+      - ".vbe"
+      - ".pif"
+      - ".scr"
+      - ".cmd"
+      - ".cpl"
+      - ".7z"
+      - ".asax"
+      - ".ashx"
+      - ".asmx"
+      - ".asp"
+      - ".aspx"
+      - ".cfm"
+      - ".cgi"
+      - ".chm"
+      - ".gif"
+      - ".jpeg"
+      - ".jpg"
+      - ".jsp"
+      - ".jspx"
+      - ".log"
+      - ".png"
+      - ".psm1"
+      - ".scf"
+      - ".sct"
+      - ".txt"
+      - ".war"
+      - ".wsf"
+      - ".xll"
+
+  # ---------------- Windows Security (Event ID 4688) ----------------
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_id:
+    NewProcessName|endswith: '\ConfigSecurityPolicy.exe'
+  sel_4688_url:
+    ProcessCommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+  sel_4688_exec_like:
+    ProcessCommandLine|contains:
+      - ".exe"
+      - ".dll"
+      - ".zip"
+      - ".rar"
+      - ".bat"
+      - ".ps1"
+      - ".vbs"
+      - ".wsh"
+      - ".js"
+      - ".vbe"
+      - ".pif"
+      - ".scr"
+      - ".cmd"
+      - ".cpl"
+      - ".7z"
+      - ".asax"
+      - ".ashx"
+      - ".asmx"
+      - ".asp"
+      - ".aspx"
+      - ".cfm"
+      - ".cgi"
+      - ".chm"
+      - ".gif"
+      - ".jpeg"
+      - ".jpg"
+      - ".jsp"
+      - ".jspx"
+      - ".log"
+      - ".png"
+      - ".psm1"
+      - ".scf"
+      - ".sct"
+      - ".txt"
+      - ".war"
+      - ".wsf"
+      - ".xll"
+
+  # Fire when ConfigSecurityPolicy.exe is executed AND (URL present OR direct-IP URL OR exec-like target in CLI)
+  condition:  ( (sel_sysmon_base and sel_sysmon_process and sel_sysmon_url ) or sel_sysmon_malicious_extension ) or 
+              ( ( sel_4688_base and sel_4688_id and sel_4688_url ) or sel_4688_exec_like )
+
+falsepositives:
+  - Legitimate Defender/Endpoint Manager or MDM operations using ConfigSecurityPolicy.exe to retrieve policy or content from approved endpoints.
+  - Enterprise change workflows that stage files via internal mirrors/CDNs over HTTP(S)/FTP.
+  - Tuning tip: allow-list your sanctioned hostnames/domains for policy/content distribution; alert on unknown or external destinations.
+level: high

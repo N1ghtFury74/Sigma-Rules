@@ -1,0 +1,155 @@
+title: CNC-E-2726320-171A-Browsers URL with Double-Extension Filename (Process Creation)
+id: 3a9f1c52-2e77-4a4a-9a17-2726320171aa
+status: test
+description: |
+  Detects Chromium-based browsers launched with a URL whose **filename appears to use a double
+  extension** (e.g., `file.exe.txt`, `payload.ps1.html`) — a common trick to disguise payloads
+  and facilitate ingress tool transfer (T1105).
+  Note: without regex we approximate “double-extension” by searching for risky/interesting extensions
+  immediately followed by a dot (e.g., “.exe.”). Tune the list below to your environment.
+  Logic here mainly focus on this point: Edge will launch and download the file. A ‘harmless’ file extension (e.g. .txt, .zip) should be appended to avoid SmartScreen in LOLin project.
+author: Mohamed Hanii
+date: 2025-10-06
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Msedge/ 
+  - https://stackoverflow.com/questions/78232186/c-sharp-headless-print-to-pdf-with-microsoft-edgechromium-wont-work-using-p
+  - https://x.com/mrd0x/status/147823448488143667
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # -------- Sysmon (EID 1) --------
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_img: 
+    Image|endswith:
+      - '\brave.exe'
+      - '\chrome.exe'
+      - '\msedge.exe'
+      - '\opera.exe'
+      - '\vivaldi.exe'
+  sel_sysmon_url:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+  sel_sysmon_double_ext_markers:
+    CommandLine|contains:
+      - '.exe.'
+      - '.dll.'
+      - '.zip.'
+      - '.rar.'
+      - '.bat.'
+      - '.ps1.'
+      - '.vbs.'
+      - '.wsh.'
+      - '.js.'
+      - '.vbe.'
+      - '.pif.'
+      - '.scr.'
+      - '.cmd.'
+      - '.cpl.'
+      - '.7z.'
+      - '.asax.'
+      - '.ashx.'
+      - '.asmx.'
+      - '.asp.'
+      - '.aspx.'
+      - '.cfm.'
+      - '.cgi.'
+      - '.chm.'
+      - '.gif.'
+      - '.jpeg.'
+      - '.jpg.'
+      - '.jsp.'
+      - '.jspx.'
+      - '.log.'
+      - '.png.'
+      - '.psm1.'
+      - '.scf.'
+      - '.sct.'
+      - '.txt.'
+      - '.war.'
+      - '.wsf.'
+      - '.xll.'
+      - '.hta.'
+      - '.jar.'
+      - '.msi.'
+      - '.msp.'
+      - '.lnk.'
+      - '.iso.'
+
+  # -------- Windows Security (EID 4688) --------
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_img:
+    NewProcessName|endswith:
+      - '\brave.exe'
+      - '\chrome.exe'
+      - '\msedge.exe'
+      - '\opera.exe'
+      - '\vivaldi.exe'
+  sel_4688_url:
+    ProcessCommandLine|contains:
+      - 'http://'
+      - 'https://'
+  sel_4688_double_ext_markers:
+    ProcessCommandLine|contains:
+      - '.exe.'
+      - '.dll.'
+      - '.zip.'
+      - '.rar.'
+      - '.bat.'
+      - '.ps1.'
+      - '.vbs.'
+      - '.wsh.'
+      - '.js.'
+      - '.vbe.'
+      - '.pif.'
+      - '.scr.'
+      - '.cmd.'
+      - '.cpl.'
+      - '.7z.'
+      - '.asax.'
+      - '.ashx.'
+      - '.asmx.'
+      - '.asp.'
+      - '.aspx.'
+      - '.cfm.'
+      - '.cgi.'
+      - '.chm.'
+      - '.gif.'
+      - '.jpeg.'
+      - '.jpg.'
+      - '.jsp.'
+      - '.jspx.'
+      - '.log.'
+      - '.png.'
+      - '.psm1.'
+      - '.scf.'
+      - '.sct.'
+      - '.txt.'
+      - '.war.'
+      - '.wsf.'
+      - '.xll.'
+      - '.hta.'
+      - '.jar.'
+      - '.msi.'
+      - '.msp.'
+      - '.lnk.'
+      - '.iso.'
+
+  # Fire when a browser launches with a URL AND a filename that includes a double-extension marker
+  condition: 
+    (sel_sysmon_base and sel_sysmon_img and sel_sysmon_url and sel_sysmon_double_ext_markers )
+     or 
+     ( sel_4688_base and sel_4688_img and sel_4688_url and sel_4688_double_ext_markers )
+
+falsepositives:
+  - Automation/test harnesses fetching artifacts named with multiple dots.
+  - Tuning tips: restrict to unapproved/internet domains, add destination reputation checks, and pair with follow-on file write/execution telemetry.
+level: medium

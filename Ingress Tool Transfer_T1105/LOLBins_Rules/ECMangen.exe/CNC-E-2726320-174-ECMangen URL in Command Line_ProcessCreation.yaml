@@ -1,0 +1,55 @@
+title: CNC-E-2726320-174-ECMangen URL in Command Line (Process Creation)
+id: 6f3d2f4e-2e6b-4d2a-93a0-2726320174aa
+status: test
+description: |
+  Detects ECMangen.exe launched with a remote URL on the command line, matching the LOLBAS
+  Download (INetCache) behavior: when given a URL, ECMangen fetches the resource and writes
+  it to the user’s INetCache (MITRE T1105). ECMangen (aka ECManGen) is a Windows SDK tool for
+  creating/editing ETW provider manifests (XML). Microsoft’s eventing docs explicitly recommend
+  ECManGen for authoring manifests, and later SDKs removed it—advising developers to hand-edit
+  the XML schema instead. 
+author: Mohamed Hanii
+date: 2025-10-08
+references:
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/ECMangen/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---- Sysmon (Event ID 1) ----
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_proc:
+    Image|endswith: '\ECMangen.exe'
+  sel_sysmon_ofn:
+    OriginalFileName: 'ECMangen.exe'
+  sel_sysmon_url:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+
+  # ---- Windows Security (Event ID 4688) ----
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_proc:
+    NewProcessName|endswith: '\ECMangen.exe'
+  sel_4688_url:
+    ProcessCommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+
+  # Fire when ECMangen is launched with a URL in CLI (Sysmon or 4688)
+  condition: (sel_sysmon_base and (sel_sysmon_proc or sel_sysmon_ofn) and sel_sysmon_url)
+             or
+             (sel_4688_base and sel_4688_proc and sel_4688_url)
+
+falsepositives:
+  - Developer/SDK usage: running ECMangen interactively to author ETW manifests (local GUI work).  
+level: high

@@ -1,0 +1,37 @@
+title: CNC-E-2726320-162-IMEWDBLD.exe FileCreate (Unexpected — Sysmon EID 11)
+id: e8a9b2f7-6d0d-4e95-9e8e-2726320162aa
+status: test
+description: |
+  Detects any file creation attributed to IMEWDBLD.exe (Sysmon Event ID 11).
+  IMEWDBLD.exe is associated with Microsoft’s IME dictionary maintenance; routine local
+  writes are uncommon outside of legitimate dictionary update workflows. Any FileCreate
+  by IMEWDBLD.exe should be reviewed to determine if it’s a sanctioned update or abuse
+  for staging/dropping content.
+author: Mohamed Hanii
+date: 2025-10-02
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/IMEWDBLD/
+  - https://github.com/SigmaHQ/sigma/blob/bea6f18d350d9c9fdc067f93dde0e9b11cc22dc2/rules/windows/network_connection/net_connection_win_imewdbld.yml
+tags:
+  - attack.t1105
+  - attack.command_and_control
+  - attack.defense_evasion
+
+logsource:
+  product: windows
+  category: file_event
+  service: sysmon
+
+detection:
+  sel_eid11:
+    EventID: 11
+  sel_image:
+    Image|endswith: '\imewdbld.exe'
+
+  condition: sel_eid11 and sel_image 
+
+
+falsepositives:
+  - Legitimate IME dictionary updates (especially on systems actively using Japanese/Chinese/Korean IMEs).
+  - Tuning tip: correlate with Windows Update activity, signed Microsoft binaries as parents, and expected file locations; allow-list if consistently benign in your environment.
+level: high

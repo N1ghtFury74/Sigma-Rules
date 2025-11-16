@@ -1,0 +1,208 @@
+title: CNC-E-2726320-174-Office Apps DNS to Non-Microsoft Domains (Sysmon EID 22)
+id: 4ee8d6cf-1d4d-4c1e-9d3b-2726320174aa
+status: test
+description: |
+  Fires when Microsoft Office desktop binaries (WINWORD/EXCEL/POWERPNT) generate DNS queries
+  to domains **outside** Microsoft 365’s published allowlist/unified domains. In normal use,
+  these apps primarily resolve Microsoft-owned endpoints for M365 experiences (SharePoint/OneDrive,
+  Office Online helpers, identity, telemetry/CDNs, etc.). DNS lookups to non-allowed domains may
+  indicate document-driven ingress tool transfer, template/asset pulls to untrusted hosts, or
+  add-in abuse.
+  
+  Note: This rule keys on **Sysmon Event ID 22 (DNS)** and matches known Microsoft 365 domains
+  (including the “Unified Domains” consolidation: `*.cloud.microsoft`, `*.static.microsoft`,
+  `*.usercontent.microsoft`) and other Office Online/SharePoint/identity endpoints documented by
+  Microsoft. Anything **not** in the list will alert.
+references:
+  - https://learn.microsoft.com/en-us/microsoft-365/enterprise/managing-office-365-endpoints?view=o365-worldwide
+  - https://learn.microsoft.com/en-us/microsoft-365/enterprise/office-365-network-mac-perf-insights?view=o365-worldwide
+  - https://endpoints.office.com/endpoints/worldwide?format=csv
+author: Mohamed Hanii
+date: 2025-10-07
+tags:
+  - attack.command_and_control
+  - attack.t1105
+logsource:
+  product: windows
+  service: sysmon
+  category: dns_query
+
+detection:
+  sel_eid22:
+    EventID: 22
+
+  # Office rich-clients
+  sel_office_img:
+    Image|endswith:
+      - '\winword.exe'
+      - '\excel.exe'
+      - '\powerpnt.exe'
+      - '\msaccess.exe'
+
+  # Microsoft 365 unified/allow endpoints (domain wildcards)
+  allow_ms365_domains:
+    QueryName|endswith:
+      # Unified Domains (Microsoft announcement)
+      - '.cloud.microsoft'
+      - '.static.microsoft'
+      - '.usercontent.microsoft'
+
+      # SharePoint / OneDrive (incl. optimize/default)
+      - '.sharepoint.com'
+      - 'storage.live.com'
+      - '.search.production.apac.trafficmanager.net'
+      - '.search.production.emea.trafficmanager.net'
+      - '.search.production.us.trafficmanager.net'
+      - '.wns.windows.com'
+      - 'admin.onedrive.com'
+      - 'officeclient.microsoft.com'
+      - 'g.live.com'
+      - 'oneclient.sfx.ms'
+      - '.sharepointonline.com'
+      - 'spoprod-a.akamaihd.net'
+      - '.svc.ms'
+
+      # Office Online / Office apps helpers
+      - '.officeapps.live.com'
+      - '.online.office.com'
+      - 'office.live.com'
+      - '.office.net'
+      - '.onenote.com'
+      - '*cdn.onenote.net'
+      - 'ajax.aspnetcdn.com'
+      - 'apis.live.net'
+      - 'www.onedrive.com'
+      - '.office365.com'
+
+      # Identity / auth
+      - '.auth.microsoft.com'
+      - '.msftidentity.com'
+      - '.msidentity.com'
+      - 'account.activedirectory.windowsazure.com'
+      - 'accounts.accesscontrol.windows.net'
+      - 'adminwebservice.microsoftonline.com'
+      - 'api.passwordreset.microsoftonline.com'
+      - 'autologon.microsoftazuread-sso.com'
+      - 'becws.microsoftonline.com'
+      - 'ccs.login.microsoftonline.com'
+      - 'clientconfig.microsoftonline-p.net'
+      - 'companymanager.microsoftonline.com'
+      - 'device.login.microsoftonline.com'
+      - 'graph.microsoft.com'
+      - 'graph.windows.net'
+      - 'login-us.microsoftonline.com'
+      - 'login.microsoft.com'
+      - 'login.microsoftonline-p.com'
+      - 'login.microsoftonline.com'
+      - 'login.windows.net'
+      - 'logincert.microsoftonline.com'
+      - 'loginex.microsoftonline.com'
+      - 'nexus.microsoftonline-p.com'
+      - 'passwordreset.microsoftonline.com'
+      - 'provisioningapi.microsoftonline.com'
+      - '.hip.live.com'
+      - '.microsoftonline-p.com'
+      - '.microsoftonline.com'
+      - '.msauth.net'
+      - '.msauthimages.net'
+      - '.msecnd.net'
+      - '.msftauth.net'
+      - '.msftauthimages.net'
+      - '.phonefactor.net'
+      - 'enterpriseregistration.windows.net'
+
+      # Security/Defender/Purview
+      - '.protection.office.com'
+      - '.security.microsoft.com'
+      - 'compliance.microsoft.com'
+      - 'defender.microsoft.com'
+      - 'protection.office.com'
+      - 'purview.microsoft.com'
+      - 'security.microsoft.com'
+      - '.portal.cloudappsecurity.com'
+
+      # Telemetry / misc MS properties used by Office/M365
+      - '.aria.microsoft.com'
+      - '.events.data.microsoft.com'
+      - '.o365weve.com'
+      - 'amp.azure.net'
+      - 'appsforoffice.microsoft.com'
+      - 'assets.onestore.ms'
+      - 'auth.gfx.ms'
+      - 'c1.microsoft.com'
+      - 'dgps.support.microsoft.com'
+      - 'docs.microsoft.com'
+      - 'msdn.microsoft.com'
+      - 'platform.linkedin.com'
+      - 'prod.msocdn.com'
+      - 'shellprod.msocdn.com'
+      - 'support.microsoft.com'
+      - 'technet.microsoft.com'
+      - '.aadrm.com'
+      - '.azurerms.com'
+      - '.informationprotection.azure.com'
+      - 'ecn.dev.virtualearth.net'
+      - 'informationprotection.hosting.portal.azure.net'
+      - 'dc.services.visualstudio.com'
+      - 'mem.gfx.ms'
+      - '.microsoft.com'
+      - '.msocdn.com'
+      - '.onmicrosoft.com'
+      - 'o15.officeredir.microsoft.com'
+      - 'officepreviewredir.microsoft.com'
+      - 'officeredir.microsoft.com'
+      - 'r.office.microsoft.com'
+      - 'activation.sls.microsoft.com'
+      - 'crl.microsoft.com'
+      - 'office15client.microsoft.com'
+      - 'officeclient.microsoft.com'
+      - 'go.microsoft.com'
+      - 'cdn.odc.officeapps.live.com'
+      - 'cdn.uci.officeapps.live.com'
+
+      # OneNote / CDN helpers, Bing/Virtual Earth used by Office features
+      - 'ajax.aspnetcdn.com'
+      - 'cdn.odc.officeapps.live.com'
+      - 'c.bing.net'
+      - 'www.bing.com'
+      - 'tse1.mm.bing.net'
+      - '.virtualearth.net'
+
+      # Microsoft 365 front doors (new domains doc mentions)
+      - '.office.com'
+      - 'www.microsoft365.com'
+
+      # Certificates/OCSP/CRL endpoints (often resolved by Office and system PKI during auth/content)
+      - '.entrust.net'
+      - '.geotrust.com'
+      - '.omniroot.com'
+      - '.public-trust.com'
+      - '.symcb.com'
+      - '.symcd.com'
+      - '.verisign.com'
+      - '.verisign.net'
+      - 'cacerts.digicert.com'
+      - 'cert.int-x3.letsencrypt.org'
+      - 'crl.globalsign.com'
+      - 'crl.globalsign.net'
+      - 'crl.identrust.com'
+      - 'crl3.digicert.com'
+      - 'crl4.digicert.com'
+      - 'isrg.trustid.ocsp.identrust.com'
+      - 'mscrl.microsoft.com'
+      - 'ocsp.digicert.com'
+      - 'ocsp.globalsign.com'
+      - 'ocsp.msocsp.com'
+      - 'ocsp2.globalsign.com'
+      - 'ocspx.digicert.com'
+      - 'oneocsp.microsoft.com'
+      - 'secure.globalsign.com'
+      - 'www.digicert.com'
+      - 'www.microsoft.com'
+
+  condition: sel_eid22 and sel_office_img and ( not allow_ms365_domains )
+
+falsepositives:
+  - Office add-ins, templates, or embedded content legitimately contacting **non-Microsoft** vendor domains (e.g., third-party CDNs or line-of-business portals).
+  - Enterprise egress architectures using proxy PAC files or DNS rewrite/split-horizon that surface non-Microsoft hostnames for Microsoft services.
+level: high

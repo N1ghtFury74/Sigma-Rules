@@ -1,0 +1,84 @@
+title: CNC-E-2726320-135-Cmd.exe Type Redirection or Copy /B (Noisy)
+id: 7a6b3d2e-1c44-4f7a-9a10-2726320135aa
+status: test
+description: |
+  Detects cmd.exe executions that:
+    • use 'type' together with output redirection ('>' or '>>'), or
+    • use 'copy' with the binary switch '/b'.
+  This pattern is COMMON in benign admin and user activity (local file viewing, concatenation,
+  scripting, and file operations on local disks or internal shares). Expect HIGH NOISE and
+  tune aggressively before alerting.
+author: Mohamed Hanii
+date: 2025-10-01
+references:
+  - https://www.elastic.co/guide/en/security/8.19/binary-content-copy-via-cmd-exe.html
+  - https://lolbas-project.github.io/lolbas/Binaries/Cmd/
+tags:
+  - attack.collection
+  - attack.exfiltration
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---------------- Sysmon (Event ID 1) ----------------
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_proc_ofn:
+    OriginalFileName: 'Cmd.Exe'
+  sel_sysmon_type:
+    CommandLine|contains:
+      - ' type '
+  sel_sysmon_redirect:
+    CommandLine|contains:
+      - ' >'
+      - ' >>'
+
+  sel_sysmon_copy:
+    CommandLine|contains:
+      - ' copy '
+  sel_sysmon_binary:
+    CommandLine|contains:
+      - '/b'
+      - '/B'
+
+  # ---------------- Windows Security (Event ID 4688) ----------------
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_proc:
+    NewProcessName|endswith: '\cmd.exe'
+
+  sel_4688_type:
+    ProcessCommandLine|contains:
+      - ' type '
+  sel_4688_redirect:
+    ProcessCommandLine|contains:
+      - ' >'
+      - ' >>'
+
+  sel_4688_copy:
+    ProcessCommandLine|contains:
+      - ' copy '
+  sel_4688_binary:
+    ProcessCommandLine|contains:
+      - '/b'
+      - '/B'
+
+  # Fire when:
+  #  - Sysmon: cmd.exe AND (type + redirection OR copy + /b)
+  #  - 4688 : cmd.exe AND (type + redirection OR copy + /b)
+  condition: (
+      sel_sysmon_base and sel_sysmon_proc_ofn and
+      ( (sel_sysmon_type and sel_sysmon_redirect) or (sel_sysmon_copy and sel_sysmon_binary) )
+    ) or (
+      sel_4688_base and sel_4688_proc and
+      ( (sel_4688_type and sel_4688_redirect) or (sel_4688_copy and sel_4688_binary) )
+    )
+
+falsepositives:
+  - Very common: local file viewing or concatenation via 'type' and redirection.
+  - Routine scripting/administration using 'copy /b' (e.g., joining files, binary-safe copies).
+  - Legitimate operations against internal shares (SMB/SharePoint/WebDAV) within the environment.
+  - Build/deployment tools and EDR/IT scripts that wrap cmd.exe for file operations.
+level: low

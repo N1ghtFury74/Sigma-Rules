@@ -1,0 +1,52 @@
+title: CNC-E-2726320-133-CertUtil Suspicious Arguments (verifyctl/urlcache/url/f)
+id: 0f6a9c5b-5e2e-4e3b-8f0e-2726320133aa
+status: test
+description: |
+  Detects CertUtil.exe process creation with arguments commonly abused for ingress tool transfer or artifact staging:
+  "verifyctl", "urlcache", URL download flags (-URL or /URL), and force flags (-f or /f). The -Post/URL features of
+  CertUtil can be used to download or upload data, and urlcache/verifyctl can manipulate local cache or verify content.
+author: Mohamed Hanii
+date: 2025-10-01
+references:
+  - https://thinkdfir.com/2020/07/30/certutil-download-artefacts/
+  - https://www.cybertriage.com/blog/dfir-breakdown-using-certutil-to-download-attack-tools
+  - https://u0041.co/posts/articals/certutil-artifacts-analysis/
+  - https://research.splunk.com/endpoint/7fac8d40-e370-45ea-a4a3-031bbcc18b02/
+  - https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/certutil
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # Sysmon (Event ID 1)
+  sel_sysmon_base:
+    EventID: 1
+    CommandLine|contains:
+      - 'verifyctl'
+      - 'urlcache'
+      - '-url'
+      - '/url'
+  sel_sysmon_proc_ofn:
+    OriginalFileName: 'CertUtil.exe'
+
+  # Windows Security (Event ID 4688)
+  sel_4688_base:
+    EventID: 4688
+    ProcessCommandLine|contains:
+      - 'verifyctl'
+      - 'urlcache'
+      - '-url'
+      - '/url'
+  sel_4688_proc:
+    NewProcessName|endswith: '\certutil.exe'
+
+  condition: (sel_sysmon_base and sel_sysmon_proc_ofn) or (sel_4688_base and sel_4688_proc)
+
+falsepositives:
+  - Legitimate certificate management or troubleshooting where CertUtil uses URL/verifyctl/urlcache/force flags.
+  - Software deployment or IT scripts that leverage CertUtil for controlled downloads or cache operations.
+level: high

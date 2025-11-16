@@ -1,0 +1,33 @@
+title: CNC-E-2726320-160-IEExec FileCreate (Unexpected — Sysmon EID 11)
+id: 0b6b2f9e-7c7c-4a3e-88e0-2726320160aa
+status: test
+description: |
+  Detects any file creation attributed to IEExec.exe (Sysmon Event ID 11). IEExec is an
+  obsolete Internet Explorer helper for ClickOnce content; file writes are atypical and
+  may signal abuse (staging payloads, dropping components) or masquerading.
+author: Mohamed Hanii
+date: 2025-10-02
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Ieexec/
+  - https://room362.com/posts/2014/2014-01-16-application-whitelist-bypass-using-ieexec-dot-exe/
+tags:
+  - attack.defense_evasion
+  - attack.t1105
+
+logsource:
+  product: windows
+  category: file_event
+  service: sysmon
+
+detection:
+  sel_eid11:
+    EventID: 11
+  sel_img:
+    Image|endswith: '\ieexec.exe'
+
+  condition: sel_eid11 and sel_img 
+
+falsepositives:
+  - Extremely rare legacy app scenarios reaching internal hosts; validate business need. (Any network conncetion need further investigation specially with outbound conncetion)
+  - Tuning tip: allow-list known internal endpoints only if justified; treat internet destinations as high risk.
+level: high

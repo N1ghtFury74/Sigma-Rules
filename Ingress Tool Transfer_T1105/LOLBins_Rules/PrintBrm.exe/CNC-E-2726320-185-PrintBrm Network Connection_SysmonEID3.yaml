@@ -1,0 +1,44 @@
+title: CNC-E-2726320-185-PrintBrm Network Connection (Sysmon EID 3)
+id: 88a1ce59-3a53-4c4a-9a18-2726320185aa
+status: test
+description: |
+  Detects **network connections** attributed to PrintBrm.exe. The tool is intended for printer
+  migration tasks (backup/restore) and normally runs on print servers. Network egress from a
+  **workstation** or to Internet-facing hosts is suspicious. Note: PrintBrm isn’t an HTTP client;
+  UNC to SMB shares (445/139) or WebDAV UNC (DavWWWRoot/@SSL → 80/443 via the OS redirector)
+  explains observed traffic when UNC paths are used on the command line (see companion process rule).
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/PrintBrm/                     
+  - https://x.com/elliotkillick/status/1404117015447670800
+
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_net_eid3:
+    EventID: 3
+  sel_net_img:
+    Image|endswith: '\PrintBrm.exe'
+  web_ports:
+    DestinationPort:
+      - 80
+      - 443
+  smb_ports:
+    DestinationPort:
+      - 445
+      - 139
+
+  # Fire on any PrintBrm network connection; constrain to SMB/Web ports for focus
+  condition: sel_net_eid3 and sel_net_img and (web_ports or smb_ports)
+
+falsepositives:
+  - Admin-led printer migration tasks on **print servers** accessing UNC paths on sanctioned file servers.
+level: high

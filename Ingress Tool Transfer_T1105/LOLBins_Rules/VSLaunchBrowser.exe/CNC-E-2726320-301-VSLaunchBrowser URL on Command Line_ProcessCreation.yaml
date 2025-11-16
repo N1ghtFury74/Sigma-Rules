@@ -1,0 +1,54 @@
+title: CNC-E-2726320-301-VSLaunchBrowser URL on Command Line (Proc Creation)
+id: 2726320-301-vslaunchbrowser-proc-url
+status: test
+description: |
+  Detects VSLaunchBrowser.exe launched with a direct URL in the command line (http/https/ftp/://),
+  a LOLBAS-pattern for ingress tool transfer (T1105). VSLaunchBrowser.exe is typically used to launch Visual Studio
+  from a browser context, but its invocation with a raw URL could indicate suspicious behavior. Investigate unexpected
+  parents and untrusted Internet destinations.
+author: Mohamed Hanii
+date: 2025-10-14
+references:
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/VSLaunchBrowser/
+tags:
+  - attack.command_and_control
+  - attack.t1105
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---- Sysmon (EID 1)
+  sel_sysmon_eid1:
+    EventID: 1
+  sel_sysmon_img:
+    Image|endswith: '\VSLaunchBrowser.exe'
+  sel_sysmon_ofn:
+    OriginalFileName: 'VSLaunchBrowser.exe'
+  sel_sysmon_url:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+      - '://'
+
+  # ---- Windows Security (EID 4688)
+  sel_4688_eid:
+    EventID: 4688
+  sel_4688_img:
+    NewProcessName|endswith: '\VSLaunchBrowser.exe'
+  sel_4688_url:
+    ProcessCommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+      - '://'
+
+  condition: >
+    ( sel_sysmon_eid1 and (sel_sysmon_img or sel_sysmon_ofn) and sel_sysmon_url ) or
+    ( sel_4688_eid and sel_4688_img and sel_4688_url )
+
+falsepositives:
+  - Legitimate Visual Studio or related integration that invokes VSLaunchBrowser.exe with internal URLs for file access or automation purposes.
+level: high

@@ -1,0 +1,78 @@
+title: CNC-E-2726320-176-Office Binaries URL Fetch via CLI (PowerPoint/Word/Excel/Access)
+id: 7c2a0a5e-9b9c-4c6e-9a17-2726320176aa
+status: test
+description: |
+  Detects process creations where Microsoft Office binaries (PowerPoint/Word/Excel/**Access**) are launched
+  with a remote URL in the command line (http/https/ftp). LOLBAS documents that these apps can fetch content
+  directly when handed a URL (e.g., `winword.exe https://...`, `powerpnt.exe https://...`, `excel.exe https://...`,
+  **`msaccess.exe https://...`**), which lands in **INetCache** in several cases (e.g., Access when the URL ends in
+  `.mdb`). This enables **Ingress Tool Transfer (T1105)** without opening a browser.
+author: Mohamed Hanii
+date: 2025-10-08
+references:
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/Powerpnt/     
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/Winword/     
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/Excel/        
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/Msaccess/     
+  - https://medium.com/@reegun/unsanitized-file-validation-leads-to-malicious-payload-download-via-office-binaries-202d02db7191
+  - https://learn.microsoft.com/en-us/microsoft-365/enterprise/microsoft-365-endpoints?view=o365-worldwide
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # -------- Sysmon (EID 1) --------
+  sel_sysmon_eid1:
+    EventID: 1
+
+  sel_sysmon_img:
+    Image|endswith:
+      - '\powerpnt.exe'
+      - '\winword.exe'
+      - '\excel.exe'
+      - '\msaccess.exe'
+
+  sel_sysmon_ofn:
+    OriginalFileName:
+      - 'POWERPNT.EXE'
+      - 'WINWORD.EXE'
+      - 'EXCEL.EXE'
+      - 'MSACCESS.EXE'
+
+  sel_sysmon_url:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+
+  # -------- Windows Security (EID 4688) --------
+  sel_4688_eid:
+    EventID: 4688
+
+  sel_4688_proc:
+    NewProcessName|endswith:
+      - '\powerpnt.exe'
+      - '\winword.exe'
+      - '\excel.exe'
+      - '\msaccess.exe'
+
+  sel_4688_url:
+    ProcessCommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+
+  # Fire when an Office binary starts with a URL in the CLI
+  condition: 
+    ( sel_sysmon_eid1 and (sel_sysmon_img or sel_sysmon_ofn) and sel_sysmon_url ) 
+    or 
+    ( sel_4688_eid and sel_4688_proc and sel_4688_url )
+
+falsepositives:
+  - Legit open of web-hosted Office content : corporate portals, SharePoint/OneDrive or internal CMS links that launch Office directly via URL (rare but possible). 
+  # Reference : https://support.microsoft.com/en-us/office/command-line-switches-for-microsoft-office-products-079164cd-4ef5-4178-b235-441737deb3a6
+level: high

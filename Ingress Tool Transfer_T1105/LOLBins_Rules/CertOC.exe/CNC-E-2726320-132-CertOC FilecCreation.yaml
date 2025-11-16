@@ -1,0 +1,37 @@
+title: CNC-E-2726320-132-CertOC FilecCreation
+id: 4f3b8d2a-2e6c-4a1a-9a2e-2d7263260132
+status: test
+description: |
+  Detects any file creation events where the creating process is CertOC.exe.
+  Adversaries may abuse CertOC (a signed LoLBin) to interact with their infra ;
+  related activity can create temporary or cached files on disk (e.g., during capability
+  queries or content retrieval).
+author: Mohamed Hanii
+date: 2025-10-01
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Certoc/
+  - https://learn.microsoft.com/sysinternals/downloads/sysmon
+  - https://attack.mitre.org/techniques/T1105/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: file_event
+  service: sysmon
+
+detection:
+  sel_base:
+    EventID: 11
+  sel_image:
+    Image|endswith: '\certoc.exe'
+  condition: sel_base and sel_image 
+
+falsepositives:
+  - None as it’s uncommon to see CertOC.exe create “normal” files. In legit use, CertOC is a niche cert utility; the two documented 
+   switches are -GetCACAPS (queries an HTTP(S) SCEP endpoint) and -LoadDLL (loads a DLL). Neither of those by design writes arbitrary 
+   files to disk. What may be seen during legitimate certificate work are changes to the Windows certificate stores 
+   (which live in the registry) and, if a certificate with a private key is installed, key material written under the Crypto key 
+    directories (e.g., C:\ProgramData\Microsoft\Crypto\RSA\MachineKeys or user/service CNG key paths).
+level: critical

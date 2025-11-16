@@ -1,0 +1,64 @@
+title: CNC-E-2726320-148-Findstr Remote File Download via UNC (Process Creation)
+id: 587254ee-a24b-4335-b3cd-065c0f1f4baa
+status: test
+description: |
+  Detects findstr.exe used with flags that can read (and thus “download”) file content from a remote UNC path.
+  The combination of "-v" and "-l" with a UNC source (\\server\share\...) is documented as a LOLBIN download
+  technique for retrieving data over SMB/WebDAV without dedicated tooling.
+author: Mohamed Hanii
+date: 2025-10-02
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Findstr/
+  - https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/findstr
+tags:
+  - attack.defense_evasion
+  - attack.credential_access
+  - attack.command_and_control
+  - attack.t1218
+  - attack.t1564.004
+  - attack.t1552.001
+  - attack.t1105
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # -------- Sysmon (Event ID 1) --------
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_proc_image:
+    Image|endswith: '\findstr.exe'
+  sel_sysmon_proc_ofn:
+    OriginalFileName: 'FINDSTR.EXE'
+  sel_sysmon_cli_flags:
+    CommandLine|contains|all:
+      - ' -v '
+      - ' -l '
+      -  '\\\\'
+      - '\DavWWWRoot' 
+      - '@SSL'
+
+  # -------- Windows Security (Event ID 4688) --------
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_proc:
+    NewProcessName|endswith: '\findstr.exe'
+  sel_4688_cli_flags:
+    ProcessCommandLine|contains|all:
+      - ' -v '
+      - ' -l '
+      -  '\\\\'
+      - '\DavWWWRoot' 
+      - '@SSL'
+
+  # Fire when findstr runs with both flags and a UNC path
+  condition: 
+    ( sel_sysmon_base and (sel_sysmon_proc_image or sel_sysmon_proc_ofn) and sel_sysmon_cli_flags ) 
+    or 
+    ( sel_4688_base and sel_4688_proc and sel_4688_cli_flags )
+
+falsepositives:
+  - Legitimate administrative or scripting activity that searches files on internal SMB/WebDAV shares using findstr with "-v" and "-l".
+  - Software deployment or IT automation scanning logs or configs on shared paths.
+level: medium

@@ -1,0 +1,46 @@
+title: CNC-E-2726320-158-IEExec Process Execution (Legacy/Unsupported)
+id: 8f3b7b4e-81c9-4f6d-9c20-2726320158aa
+status: test
+description: |
+  Detects execution of IEExec.exe — a legacy .NET/ClickOnce Internet Explorer helper.
+  In 2025 this binary is effectively obsolete/unsupported and should not be needed in
+  modern environments. Any invocation warrants investigation for abuse (e.g., app
+  whitelisting bypass) or legacy artifact resurfacing.
+  Note : Microsoft later removed/obsoleted IEExec (and IEHost) in .NET Framework 4 era; those assemblies are not supported and Microsoft points 
+  developers to alternatives like ClickOnce or XBAP/Silverlight (also legacy). That deprecation is why IEExec is mostly seen today as a living-off-the-land 
+  artifact rather than a supported app platform.
+author: Mohamed Hanii
+date: 2025-10-02
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Ieexec/
+  - https://room362.com/posts/2014/2014-01-16-application-whitelist-bypass-using-ieexec-dot-exe/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+  - attack.defense_evasion
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---- Sysmon (EID 1) ----
+  sel_sysmon_eid1:
+    EventID: 1
+  sel_sysmon_img:
+    Image|endswith: '\ieexec.exe'
+  sel_sysmon_ofn:
+    OriginalFileName: 'IEExec.exe'
+
+  # ---- Windows Security (EID 4688) ----
+  sel_4688_eid:
+    EventID: 4688
+  sel_4688_proc:
+    NewProcessName|endswith: '\ieexec.exe'
+
+  condition: (sel_sysmon_eid1 and (sel_sysmon_img or sel_sysmon_ofn)) or (sel_4688_eid and sel_4688_proc)
+
+falsepositives:
+  - Rare legacy or lab/testing scenarios intentionally invoking IEExec for research.
+  - Tuning tip: if truly required by a legacy workflow, allow-list specific hosts/users and documented cmdlines; otherwise treat as suspicious.
+level: high

@@ -1,0 +1,52 @@
+title: CNC-E-2726320-302-WinProj URL on Command Line (Proc Creation)
+id: 2726320-302-winproj-proc-url
+status: test
+description: |
+  Detects WinProj.exe launched with a direct URL in the command line (http/https/ftp/://),
+  a LOLBAS-pattern for ingress tool transfer (T1105). WinProj.exe is part of Microsoft Project, typically used to
+  manage project files, but its invocation with a raw URL is atypical. This should raise suspicion and warrants investigation.
+author: Mohamed Hanii
+date: 2025-10-14
+references:
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/WinProj/
+tags:
+  - attack.command_and_control
+  - attack.t1105
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---- Sysmon (EID 1)
+  sel_sysmon_eid1:
+    EventID: 1
+  sel_sysmon_img:
+    Image|endswith: '\WinProj.exe'
+  sel_sysmon_ofn:
+    OriginalFileName: 'WinProj.exe'
+  sel_sysmon_url:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+      - '://'
+
+  # ---- Windows Security (EID 4688)
+  sel_4688_eid:
+    EventID: 4688
+  sel_4688_img:
+    NewProcessName|endswith: '\WinProj.exe'
+  sel_4688_url:
+    ProcessCommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+      - '://'
+
+  condition: 
+    ( sel_sysmon_eid1 and (sel_sysmon_img or sel_sysmon_ofn) and sel_sysmon_url ) or
+    ( sel_4688_eid and sel_4688_img and sel_4688_url )
+falsepositives:
+  - Legitimate instances of Microsoft Project that invoke WinProj.exe with internal URLs for file access or automation purposes.
+level: high

@@ -1,0 +1,35 @@
+title: CNC-E-2726320-176-NGen Network Connection (Sysmon EID 3)
+id: 9b3e0a61-2f49-4db4-8b1e-2726320176aa
+status: test
+description: |
+  Detects any network connection initiated by ngen.exe. Under normal/legitimate use, the .NET
+  Native Image Generator operates on local assemblies and does **not** make outbound connections.
+  LOLBAS notes that `ngen.exe {REMOTEURL}` downloads to **INetCache**; therefore, seeing NGen
+  create TCP/UDP connections (especially to 80/443) is anomalous and may indicate ingress tool
+  transfer (T1105).
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+   - https://lolbas-project.github.io/lolbas/Binaries/Ngen/          
+   - https://learn.microsoft.com/en-us/dotnet/framework/tools/ngen-exe-native-image-generator
+   - https://learn.microsoft.com/en-us/ef/ef6/fundamentals/performance/ngen
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_image:
+    Image|endswith: '\ngen.exe'
+
+  condition: sel_eid3 and sel_image 
+
+falsepositives:
+  - Very uncommon in typical environments. Possible noise from security testing or bespoke IT tooling that (ab)uses NGen with remote URLs.
+level: high

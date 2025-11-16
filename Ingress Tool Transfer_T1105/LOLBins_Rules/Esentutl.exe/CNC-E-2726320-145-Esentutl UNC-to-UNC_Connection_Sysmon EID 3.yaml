@@ -1,0 +1,36 @@
+title: CNC-E-2726320-145-Esentutl Network Connection (Sysmon EID 3)
+id: 9a7d3f21-5b42-4f9e-bc45-2726320145aa
+status: test
+description: |
+  Detects any network connection initiated by Esentutl.exe (Sysmon Event ID 3). While esentutl is
+  a legitimate database/utility tool, adversaries can abuse its `/y` copy capability against UNC
+  paths (SMB/WebDAV) to move data—including copying **locked files** from remote shares. Any
+  connection from esentutl warrants investigation to determine if it facilitated ingress/egress
+  or file staging over the network.
+author: Mohamed Hanii
+date: 2025-10-02
+references:
+  - https://dfironthemountain.wordpress.com/2018/12/06/locked-file-access-using-esentutl-exe/
+  - https://lolbas-project.github.io/lolbas/Binaries/Esentutl/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_image:
+    Image|endswith: '\esentutl.exe'
+  # Fire when Sysmon NetworkConnect (EID 3) is attributed to esentutl.exe
+  condition: sel_eid3 and sel_image 
+
+falsepositives:
+  - Legitimate administrative use of Esentutl for database maintenance or internal file operations.
+  - Backup/software distribution workflows using UNC paths where Esentutl may access or copy files, including locked files.
+  - Review destination host/port, parent process, and command line (/y /d UNC usage) to validate intent.
+level: high

@@ -1,0 +1,83 @@
+title: CNC-E-2726320-171B-Browsers Headless Dump-DOM Base64 Capture (Process Creation)
+id: 7e6f2b3a-5a7e-45d1-89f1-2726320171bb
+status: test
+description: |
+  Detects Chromium-based browsers launched in **headless** mode with **--dump-dom** to fetch a remote
+  page that may contain base64-encoded payloads (As Downloaded file should end with .html, Binaries should be encoded. ), often redirected to 
+  a local file (e.g.,`--dump-dom "https://…/file.base64.html" > file.b64`). This can facilitate ingress tool transfer
+  (T1105) without an interactive window.
+author: Mohamed Hanii
+date: 2025-10-06
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Msedge/ 
+  - https://stackoverflow.com/questions/78232186/c-sharp-headless-print-to-pdf-with-microsoft-edgechromium-wont-work-using-p
+  - https://x.com/mrd0x/status/1478234484881436672
+  - https://developer.chrome.com/docs/chromium/headless
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # -------- Sysmon (EID 1) --------
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_img:
+    Image|endswith: # All of them is chromium based.
+      - '\brave.exe'
+      - '\chrome.exe'
+      - '\msedge.exe'
+      - '\opera.exe'
+      - '\vivaldi.exe'
+  sel_sysmon_headless:
+    CommandLine|contains:
+      - '--headless'
+      - '--dump-dom'
+  sel_sysmon_urlhint:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+  sel_sysmon_redirect_hint:
+    CommandLine|contains:
+      - ' >'
+      - ' >>'
+      - '.b64'
+
+  # -------- Windows Security (EID 4688) --------
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_img:
+    NewProcessName|endswith:
+      - '\brave.exe'
+      - '\chrome.exe'
+      - '\msedge.exe'
+      - '\opera.exe'
+      - '\vivaldi.exe'
+  sel_4688_headless:
+    ProcessCommandLine|contains:
+      - '--headless' # According to this article : https://developer.chrome.com/docs/chromium/headless headless can be used without internet conncetion so to keep focus on ingress tool transfer we will use and detection logic with http & https
+      - '--dump-dom'
+  sel_4688_urlhint:
+    ProcessCommandLine|contains:
+      - 'http://'
+      - 'https://'
+  sel_4688_redirect_hint:
+    ProcessCommandLine|contains:
+      - ' >'
+      - ' >>'
+      - '.b64'
+
+  # Fire when a browser runs headless with dump-dom against a URL (redirection hints optional)
+  condition: # or with sel_*_redirect_hint as malicious html itself could be used without any binaries encoded in it and there is no refence talks about the redirection must happen.
+   ( sel_sysmon_base and sel_sysmon_img and sel_sysmon_headless or ( sel_sysmon_urlhint ) ) 
+   or 
+   ( sel_4688_base and sel_4688_img and sel_4688_headless or ( sel_4688_urlhint ) )
+
+falsepositives:
+  - Automation/testing frameworks legitimately using headless Chromium for scraping or validation.
+  - CI/CD or monitoring jobs fetching pages for health checks. Allow-list approved hosts, signed parents, and known service accounts.
+  - Tip : If your org doesn’t need headless automation, disable it via policy and alert on attempts; this closes the exact avenue abused here.
+level: high

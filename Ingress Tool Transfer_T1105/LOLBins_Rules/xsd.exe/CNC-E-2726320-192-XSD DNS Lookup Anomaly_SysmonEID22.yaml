@@ -1,0 +1,31 @@
+title: CNC-E-2726320-192-XSD DNS Lookup Anomaly (Sysmon EID 22)
+id: 8c6e6a5f-2f2c-4f0a-92a2-2726320192aa
+status: test
+description: |
+  Detects xsd.exe performing DNS queries. In normal scenarios xsd.exe operates on local files and
+  does not resolve external domains. DNS activity may correlate with URL usage that causes xsd.exe
+  to fetch remote content into INetCache (T1105) per LOLBAS.
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/xsd/     
+  - https://learn.microsoft.com/en-us/dotnet/standard/serialization/xml-schema-definition-tool-xsd-exe
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: dns_query
+
+detection:
+  sel_eid22:
+    EventID: 22
+  sel_image:
+    Image|endswith: '\xsd.exe'
+  condition: sel_eid22 and sel_image
+
+falsepositives:
+  - Legit dev/CI use: MSBuild/Visual Studio or SDK-installed xsd.exe fetching schemas/WSDLs from internal HTTP(S) endpoints during codegen/inference on dev PCs or build agents
+level: high

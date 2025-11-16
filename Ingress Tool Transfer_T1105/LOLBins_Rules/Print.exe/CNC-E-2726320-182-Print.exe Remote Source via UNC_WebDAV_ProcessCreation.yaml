@@ -1,0 +1,60 @@
+title: CNC-E-2726320-182-Print.exe Remote Source via UNC/WebDAV (Process Creation)
+id: 9d2db3f4-63f3-4f8b-9c8f-2726320182aa
+status: test
+description: |
+  Detects Print.exe launched to print a file from a **remote UNC source**, including SMB
+  (\\host\share\file) and WebDAV UNC forms (\\host\DavWWWRoot\…, \\host@SSL\DavWWWRoot\…).
+  Note: Print.exe itself does **not** speak HTTP(S); any “internet retrieval” comes from
+  UNC over SMB/WebDAV via the Windows redirectors, not an internal HTTP client.
+  This pattern can support ingress data movement (T1105) when a remote share is attacker-
+  controlled or internet-reachable.
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Print/    
+  - https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/print      
+  - https://lolbas-project.github.io/lolbas/Binaries/Print/                                     
+  - https://learn.microsoft.com/iis/publish/using-webdav/using-the-webdav-redirector           
+  - https://learn.microsoft.com/windows/win32/api/_webdav/                                     
+  - https://superuser.com/questions/1407747/what-does-unc-path-with-ssl-tucked-to-the-hostname-mean  
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ------- Sysmon (EID 1) -------
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_proc:
+    - Image|endswith: '\print.exe'
+    - OriginalFileName: 'PRINT.EXE'
+  sel_sysmon_unc_markers:
+    CommandLine|contains:
+      - '\\\\'               # generic UNC
+      - 'DavWWWRoot'         # WebDAV UNC
+      - '@SSL'               # HTTPS WebDAV UNC
+
+  # ------- Windows Security (EID 4688) -------
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_proc:
+    NewProcessName|endswith: '\print.exe'
+  sel_4688_unc_markers:
+    ProcessCommandLine|contains:
+      - '\\\\'
+      - 'DavWWWRoot'
+      - '@SSL'
+
+  # Fire when Print.exe is invoked with UNC/WebDAV-style source path
+  condition: 
+    ( sel_sysmon_base and sel_sysmon_proc and sel_sysmon_unc_markers ) 
+    or ( sel_4688_base and sel_4688_proc and sel_4688_unc_markers )
+
+falsepositives:
+  - Legitimate printing from internal SMB shares (expected in many enterprises).
+  - Approved WebDAV/SharePoint document printing that uses the WebDAV redirector.
+level: high

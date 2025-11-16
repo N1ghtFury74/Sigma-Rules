@@ -1,0 +1,54 @@
+title: CNC-E-2726320-502-WMIC Network to Web/SMB/FTP Ports (Sysmon NetConn)
+id: 2726320-502-wmic-net-ingress-ports
+status: test
+description: |
+  Flags **wmic.exe** initiating **network connections** (Sysmon EID 3) to ports commonly used for
+  **ingress content retrieval**, such as **HTTP/HTTPS (80/443/8080/8443)** for remote XSL or script,
+  and **SMB (445)** or **FTP (21)** for UNC/FTP fetches or staging. This is a **supporting analytic**
+  to corroborate the process-creation alert that shows URLs/UNCs in the command line.
+  Why this matters:
+    - WMIC **/FORMAT:** with an HTTP(S) or UNC target causes a live **fetch** (remote XSL), which will
+      surface as connections to web or SMB ports if your Sysmon config logs them. [LOLBAS, Elastic]
+    - Normal **remote WMI/DCOM** talks to **dest 135** and then a **dynamic RPC port (49152–65535)**.
+      Connections from `wmic.exe` to **web/SMB/FTP ports** are atypical and suggest **ingress activity**,
+      not just DCOM plumbing.
+  Note: Sysmon EID 3 is disabled by default; ensure your Sysmon configuration logs network connections and
+  retains the **Image** field to attribute sockets to `wmic.exe`.
+author: Mohamed Hanii
+date: 2025-10-25
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Wmic/             
+  - https://www.elastic.co/guide/en/security/current/suspicious-wmic-xsl-script-execution.html  
+tags:
+  - attack.command_and_control
+  - attack.t1105
+  - windows
+  - network
+
+logsource:
+  product: windows
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_img:
+    Image|endswith: '\wmic.exe'
+
+  # Web/SMB/FTP destinations indicative of ingress fetch/staging
+  sel_ingress_ports:
+    DestinationPort|in:
+      - 80
+      - 443
+      - 8080
+      - 8443
+      - 445
+      - 21
+
+  condition: sel_eid3 and sel_img and sel_ingress_ports
+
+falsepositives:
+  - Internal tooling that renders WMIC output via **internal web services** or **UNC shares** (rare; baseline known hosts/shares).
+  - Security/testing teams reproducing **Squiblytwo** or WMIC-based download techniques in a lab.
+  - Proxies or security appliances that cause `wmic.exe` to connect to **corporate egress** addresses (allowlist corporate proxy IPs/FQDNs).
+level: medium

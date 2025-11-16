@@ -1,0 +1,33 @@
+title: CNC-E-2726320-149-Findstr Network Connection to SMB/WebDAV (Sysmon EID 3)
+id: 8b0c7e9a-9de0-4a7c-9f64-2726320149aa
+status: test
+description: |
+  Detects findstr.exe generating Sysmon Event ID 3 (Network connection)—behavior that is unusual for a local text-search utility. 
+  This typically occurs when findstr is pointed at a remote UNC/WebDAV path (e.g., \\server\share\…, \\host\DavWWWRoot\…, \\host@SSL\DavWWWRoot\…), 
+  causing Windows to read the file over the network and attribute the connection to findstr.exe. Investigate the destination host and the invoking command 
+  line to distinguish benign remote file reads from LOLBAS-style content retrieval (documented WebDAV/UNC abuse) and confirm with EID-3’s per-process linkage. 
+author: Mohamed Hanii
+date: 2025-10-02
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Findstr/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_image:
+    Image|endswith: '\findstr.exe'
+
+  condition: sel_eid3 and sel_image 
+
+falsepositives:
+  - Benign searches over internal shares (SMB/WebDAV) using findstr in admin scripts or IT automation.
+  - Environments with heavy use of UNC-based content may see frequent matches—tune with allowlists for approved servers and correlate with process command lines.
+level: high

@@ -1,0 +1,72 @@
+title: CNC-E-2726320-174A-msedge_proxy Raw URL Without --app* (Process Creation)
+id: 4a2f6d39-8f1e-45fe-a1b0-2726320174aa
+status: test
+description: |
+  Detects msedge_proxy.exe launched with a direct URL (http/https/ftp) on the command line
+  **without** Chromium PWA/app flags (e.g., --app, --app-id, --app-url). This pattern is
+  associated with Ingress Tool Transfer (T1105) noted in LOLBAS for msedge_proxy.
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/msedge_proxy/        
+  - https://www.thurrott.com/windows/windows-10/222790/microsoft-edge-is-getting-new-pwa-features-on-windows-10
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # -------- Sysmon (EID 1) --------
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_img:
+    Image|endswith: '\msedge_proxy.exe'
+  sel_sysmon_ofn:
+    OriginalFileName: 'msedge_proxy.exe'
+  sel_sysmon_url:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+  # exclude typical PWA/app launch patterns
+  sel_sysmon_appflags:
+    CommandLine|contains:
+      - '--app'
+      - '--app-id'
+      - '--app-url'
+      - '--app='
+      - '--app-id='
+      - '--app-url='
+
+  # -------- Windows Security (EID 4688) --------
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_img:
+    NewProcessName|endswith: '\msedge_proxy.exe'
+  sel_4688_url:
+    ProcessCommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+  sel_4688_appflags:
+    ProcessCommandLine|contains:
+      - '--app'
+      - '--app-id'
+      - '--app-url'
+      - '--app='
+      - '--app-id='
+      - '--app-url='
+
+  # Fire when msedge_proxy has a URL on CLI and no --app* flags
+  condition: 
+    ( sel_sysmon_base and (sel_sysmon_img or sel_sysmon_ofn) and sel_sysmon_url and ( not sel_sysmon_appflags ) ) 
+    or ( sel_4688_base and sel_4688_img and sel_4688_url and ( not sel_4688_appflags ) )
+
+
+falsepositives:
+  - Legitimate PWA/Edge automation normally uses --app/--app-id/--app-url; this rule tries to exclude those. Rare scripts may still pass raw URLs intentionally.
+  - Tune on approved corporate domains and known automation parents.
+level: high

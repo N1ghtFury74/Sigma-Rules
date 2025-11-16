@@ -1,0 +1,39 @@
+title: CNC-E-2726320-203-MsoHtmEd FileCreate in INetCache (Sysmon EID 11)
+id: 9a5c1e7a-1a58-4a2e-9c3d-2726320203aa
+status: test
+description: |
+  Detects files created by MsoHtmEd.exe under browser cache locations (INetCache / Temporary Internet Files).
+  When started with a remote URL, MsoHtmEd can fetch the resource using the Windows web stack and stage it
+  in INetCache (LOLBIN download behavior). Investigate any write→execute chain from these paths.
+author: Mohamed Hanii
+date: 2025-10-10
+references:
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/MsoHtmEd/            
+  - https://www.bleepingcomputer.com/news/security/hackers-can-abuse-microsoft-office-executables-to-download-malware/  
+tags:
+  - attack.t1105
+  - attack.command_and_control
+  - attack.defense_evasion
+
+logsource:
+  product: windows
+  service: sysmon
+  category: file_event
+
+detection:
+  sel_eid11:
+    EventID: 11
+  sel_proc:
+    Image|endswith: '\msohtmed.exe'
+  writable_cache_paths:
+    TargetFilename|contains:
+      - '\AppData\Local\Microsoft\Windows\INetCache\'
+      - '\AppData\Local\Microsoft\Windows\Temporary Internet Files\'
+
+  condition: sel_eid11 and sel_proc and writable_cache_paths
+
+
+falsepositives:
+  - Legitimate HTML preview/print that causes cached assets (images/CSS/HTML) to be written under INetCache.
+  - Enterprise tools that intentionally render remote HTML via MsoHtmEd; tune on approved domains/parents and confirm no follow-on execution.
+level: low

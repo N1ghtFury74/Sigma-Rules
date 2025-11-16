@@ -1,0 +1,36 @@
+title: CNC-E-2726320-156-HH.exe Network Connection (Sysmon EID 3)
+id: 6d9e2e2c-3b6c-4b1d-9c72-2726320156aa
+status: test
+description: |
+  Detects any network connection initiated by HH.exe (HTML Help executable) via Sysmon Event ID 3.
+  HH.exe is a Help Viewer for .chm files and isn’t expected to reach out to the internet under
+  normal use. Any outbound connection should be investigated for IOCs (remote IP/host, ports,
+  reputation) to determine if a malicious CHM or script invoked external content.
+  Need to verify whether the destination is external; allow-list known internal help servers and signed/approved help packages.
+author: Mohamed Hanii
+date: 2025-10-03
+references:
+  - https://learn.microsoft.com/en-us/previous-versions/windows/desktop/htmlhelp/about-the-html-help-executable-program
+  - https://learn.microsoft.com/en-us/previous-versions/windows/desktop/htmlhelp/using-command-line-switches
+  - https://lolbas-project.github.io/lolbas/Binaries/Hh/
+  - https://oddvar.moe/2017/08/13/bypassing-device-guard-umci-using-chm-cve-2017-8625/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_image:
+    Image|endswith: '\hh.exe'
+
+  condition: sel_eid3 and sel_image 
+
+falsepositives:
+  - Corporate (via internal shares ) help systems or intranet CHM content that legitimately references remote/internal resources.
+level: high

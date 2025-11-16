@@ -1,0 +1,82 @@
+title: CNC-E-2726320-401-WSL URL/Raw-IP on Command Line (Proc Creation)
+id: 2726320-401-wsl-proc-url-ip
+status: test
+description: |
+  Detects **wsl.exe** invoked to execute Linux tooling (e.g., `--exec/-e`, `bash -c`) where the
+  command line contains either (1) a **URL scheme** (`http://`, `https://`, `ftp://`) or (2) a **raw IP
+  destination** (optionally with `:port`), which commonly appears **near the end** of download/staging
+  commands. This aligns to **WSL-enabled ingress tool transfer (T1105)** patterns discussed earlier:
+  `/dev/tcp/HOST/PORT` pulls, `curl|wget` fetches to Windows paths (e.g., `/mnt/c/...`), and dual-ended
+  streams (`nc/ncat/socat`, `openssl s_client`), with staging under `%TEMP%`, `%ProgramData%`, or
+  `C:\Users\Public\`. WSL’s interop bridges and `--exec` semantics (no shell expansion) make it attractive
+  for drop-and-launch flows.
+author: Mohamed Hanii
+date: 2025-10-15
+references:
+  - https://learn.microsoft.com/windows/wsl/basic-commands
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/Wsl/
+  - https://alertoverload.com/posts/2024/12/bypassing-edr-constraints-via-wsl2/
+  - https://snikt.net/blog/2023/01/27/using-wsl2-to-hide-from-edr/
+tags:
+  - attack.command_and_control
+  - attack.t1105
+  - windows
+  - process_creation
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---- Sysmon (EID 1)
+  sel_sysmon_eid1:
+    EventID: 1
+
+  sel_sysmon_img:
+    Image|endswith: '\wsl.exe'
+
+  sel_sysmon_ofn:
+    OriginalFileName: 'WSL.exe'        
+
+  # URL schemes in cmdline
+  sel_sysmon_url:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+
+  # Raw IPv4 (optional :port) near end of cmdline (allow quotes/spaces)
+  sel_sysmon_rawip_tail:
+    CommandLine|re: '(?i)(?:^|\\s)(?:[0-9]{1,3}\\.){3}[0-9]{1,3}(?::[0-9]{1,5})?(?:["\\s]*$)'
+
+
+  # ---- Windows Security (EID 4688)
+  sel_4688_eid:
+    EventID: 4688
+
+  sel_4688_img:
+    NewProcessName|endswith: '\wsl.exe'
+
+  sel_4688_url:
+    ProcessCommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+
+  sel_4688_rawip_tail:
+    ProcessCommandLine|re: '(?i)(?:^|\\s)(?:[0-9]{1,3}\\.){3}[0-9]{1,3}(?::[0-9]{1,5})?(?:["\\s]*$)'
+
+  condition: >
+    (
+      sel_sysmon_eid1 and (sel_sysmon_img or sel_sysmon_ofn)  and ( sel_sysmon_url or sel_sysmon_rawip_tail )
+    )
+    or
+    (
+      sel_4688_eid and sel_4688_img and ( sel_4688_url or sel_4688_rawip_tail )
+    )
+
+falsepositives:
+  - Legit WSL use against internal services by raw IP (RFC1918/CGN ranges) during dev, lab work, or when DNS is bypassed for troubleshooting.
+  - CI/CD or automation invoking Linux tools through `wsl.exe` to pull artifacts from internal ip:port package mirrors or registries.
+  - Developer bootstrap scripts using `curl|wget|/dev/tcp` to seed environments, especially when writing to `/mnt/c/...` for cross-OS interop.
+level: high

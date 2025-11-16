@@ -1,0 +1,37 @@
+title: CNC-E-2726320-153-Finger.exe FileCreate (Unexpected — Sysmon EID 11)
+id: 0c5f4c5d-2f2c-4cb0-9f53-2726320153aa
+status: test
+description: |
+  Detects any file creation event attributed to finger.exe (Sysmon Event ID 11).
+  The Finger client is a legacy/deprecated protocol tool used to query remote user
+  information over TCP/79 and does not normally write files to disk. Therefore,
+  any FileCreate by finger.exe is unusual and should be investigated to rule out
+  misuse, staging, or tooling masquerade.
+author: Mohamed Hanii
+date: 2025-10-02
+references:
+    - https://www.huntress.com/blog/cant-touch-this-data-exfiltration-via-finger
+    - https://lolbas-project.github.io/lolbas/Binaries/Finger/
+    - https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2012-r2-and-2012/ff961508(v=ws.11)
+tags:
+  - attack.command_and_control
+  - attack.t1105
+
+logsource:
+  product: windows
+  category: file_event
+  service: sysmon
+
+detection:
+  sel_eid11:
+    EventID: 11
+  sel_image:
+    Image|endswith: '\finger.exe'
+
+  # Fire on any file creation by finger.exe (no path filtering)
+  condition: sel_eid11 and sel_image 
+
+falsepositives:
+  - Extremely rare. Potential cases include custom admin/test scripts that redirect or tee output in a way that attributes a write to finger.exe, or lab environments experimenting with legacy tools.
+  - Validate parent process, command line, and whether the destination path is user-writable or sensitive; in normal use, finger.exe should not create files.
+level: high

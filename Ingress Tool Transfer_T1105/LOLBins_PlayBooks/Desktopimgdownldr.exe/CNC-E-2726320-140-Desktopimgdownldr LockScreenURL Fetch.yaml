@@ -1,0 +1,54 @@
+title: CNC-E-2726320-140-Desktopimgdownldr LockScreenURL Fetch
+id: 3f9d8a19-6f6e-4f0a-9a1b-2726320140aa
+status: test
+description: |
+  Detects Desktopimgdownldr.exe invoked to fetch remote content via the '/lockscreenurl' parameter.
+  Desktopimgdownldr is a LOLBIN that can download files from the Internet when abused with this switch.
+  IMP Note : Because the binary uses BITS COM Object[7] to download the file, the process that actually makes the 
+  TCP connection and creates the file on the disk is a svchost process (“-k netsvc -p -s BITS”) and not desktopimgdownldr.exe.
+author: Mohamed Hanii
+date: 2025-10-01
+references:
+  - https://www.sentinelone.com/labs/living-off-windows-land-a-new-native-file-downldr/
+  - https://lolbas-project.github.io/lolbas/Binaries/Desktopimgdownldr/
+tags:
+  - attack.command_and_control
+  - attack.t1105
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # -------- Sysmon (Event ID 1) --------
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_image:
+    Image|endswith: '\desktopimgdownldr.exe'
+  sel_sysmon_ofn:
+    OriginalFileName: 'Desktopimgdownldr.exe'
+  sel_sysmon_arg:
+    CommandLine|contains: '/lockscreenurl'
+  sel_sysmon_rm_regentry:
+    CommandLine|contains: 'PersonalizationCSP'
+
+  # -------- Windows Security (Event ID 4688) --------
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_image:
+    NewProcessName|endswith: '\desktopimgdownldr.exe'
+  sel_4688_arg:
+    ProcessCommandLine|contains: '/lockscreenurl'
+  sel_4688_rm_regentry:
+    ProcessCommandLine|contains: 'PersonalizationCSP'
+
+  # Fire when Desktopimgdownldr is executed with the lockscreen URL parameter OR the reg deletion indicator
+  condition: 
+    ((sel_sysmon_base and (sel_sysmon_image or sel_sysmon_ofn) and sel_sysmon_arg) or sel_sysmon_rm_regentry) 
+     or ((sel_4688_base and sel_4688_image and sel_4688_arg) or sel_4688_rm_regentry)
+
+falsepositives:
+  - I's possible (though rare) for approved, internal customization to pull lock-screen images. If this happens, the downloaded file typically lands 
+    under C:\Windows\Personalization\LockScreenImage\LockScreenImage_%RANDOM%.jpg. When you see a create in that path, investigate the 
+    source URL , file created and parent process to confirm it came from an approved server/workflow.
+level: medium

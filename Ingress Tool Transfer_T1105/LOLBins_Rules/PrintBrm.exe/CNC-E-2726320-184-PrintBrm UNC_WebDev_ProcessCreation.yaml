@@ -1,0 +1,77 @@
+title: CNC-E-2726320-184-PrintBrm UNC/WebDAV Usage (Process Creation)
+id: 2b9c6f5d-0a2a-4a51-a5c8-2726320184aa
+status: test
+description: |
+  Detects PrintBrm.exe (Printer Migration CLI) invoked to operate on **remote UNC paths**,
+  including SMB (\\server\share\...) and WebDAV UNC (\\host\DavWWWRoot\..., \\host@SSL\DavWWWRoot\...).
+  LOLBAS shows PrintBrm can be abused to compress content from a remote share into a local archive
+  (T1105 “ingress/exfil staging”). Use is especially suspicious on **normal workstations**—
+  PrintBrm is typically used by admins on print servers during migration/backup.
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/PrintBrm/                     
+  - https://x.com/elliotkillick/status/1404117015447670800
+
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---- Sysmon (EID 1) ----
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_img:
+    - Image|endswith: '\PrintBrm.exe'
+    - OriginalFileName: 'PRINTBRM.EXE'
+  sel_sysmon_cli_switches:
+    CommandLine|contains:
+      - ' -b'      # backup/compress
+      - ' /b'
+      - ' -r'      # restore/extract
+      - ' /r'
+      - ' -d '     # data/dir source
+      - ' /d '
+      - ' -f '     # file (archive) path
+      - ' /f '
+  sel_sysmon_unc_markers:
+    CommandLine|contains:
+      - '\\\\'           # generic UNC
+      - 'DavWWWRoot'     # WebDAV UNC
+      - '@SSL'           # HTTPS WebDAV UNC
+
+  # ---- Windows Security (EID 4688) ----
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_img:
+    NewProcessName|endswith: '\PrintBrm.exe'
+  sel_4688_cli_switches:
+    ProcessCommandLine|contains:
+      - ' -b'
+      - ' /b'
+      - ' -r'
+      - ' /r'
+      - ' -d '
+      - ' /d '
+      - ' -f '
+      - ' /f '
+  sel_4688_unc_markers:
+    ProcessCommandLine|contains:
+      - '\\\\'
+      - 'DavWWWRoot'
+      - '@SSL'
+
+  # Fire when PrintBrm is used with relevant switches AND a UNC/WebDAV source/target
+  condition: 
+    ( sel_sysmon_base and sel_sysmon_img and sel_sysmon_cli_switches and sel_sysmon_unc_markers ) 
+    or 
+    ( sel_4688_base and sel_4688_img and sel_4688_cli_switches and sel_4688_unc_markers )
+
+
+falsepositives:
+  - Legitimate **print server** migrations/backups (admin activity) using UNC paths.
+level: high

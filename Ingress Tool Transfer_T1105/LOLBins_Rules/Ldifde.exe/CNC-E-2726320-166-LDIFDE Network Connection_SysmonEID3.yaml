@@ -1,0 +1,36 @@
+title: CNC-E-2726320-166-LDIFDE Network Connection (Sysmon EID 3)
+id: 4f3e9d0b-0c2b-483f-9dc8-2726320166aa
+status: test
+description: |
+  Detects any network connection by ldifde.exe (Sysmon Event ID 3). **Normal** usage is LDAP/LDAPS
+  to domain controllers (e.g., 389/636/3268/3269) by admins for directory export/import. Connections
+  from ldifde.exe to **non-DC endpoints** (including web hosts if an LDIF contains URL value-specs)
+  are suspicious and warrant investigation (confirm destination is a known DC or sanctioned service).
+author: Mohamed Hanii
+date: 2025-10-02
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Ldifde/
+  - https://www.rfc-editor.org/rfc/rfc2849
+tags:
+  - attack.command_and_control
+  - attack.t1105
+  - attack.discovery
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_img:
+    Image|endswith: '\ldifde.exe'
+
+  # Fire on any network connection by ldifde.exe
+  condition: sel_eid3 and sel_img 
+
+falsepositives:
+  - Legitimate admin activity against domain controllers/AD LDS instances (expected: DC IPs/hostnames, LDAP/LDAPS ports).
+  - IMports using LDIFs that embed internal URLs (resulting in web fetches to approved internal hosts/CDNs).
+level: high

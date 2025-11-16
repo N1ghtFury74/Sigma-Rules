@@ -1,0 +1,47 @@
+title: CNC-E-2726320-137-CMDL32 FileCreate in TMP as VPN*.tmp (Sysmon EID 11)
+id: 1a2f5b77-8f6e-4c8c-9e37-2726320137aa
+status: test
+description: |
+  Detects file creation events by cmdl32.exe where the created file is a temporary payload
+  in the user/system TEMP directory named like VPNXXXX.tmp. According to LOLBAS, CMDL32 can
+  download a file from a web address specified in its configuration and place it under %TMP%
+  as VPN####.tmp (letters/digits for the ####).
+author: Mohamed Hanii
+date: 2025-10-01
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Cmdl32/
+  - https://attack.mitre.org/techniques/T1105/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: file_event
+  service: sysmon
+
+detection:
+  sel_eid11:
+    EventID: 11
+
+  sel_image_path:
+    - Image|endswith: '\cmdl32.exe'
+  sel_tmp_paths:
+    TargetFilename|contains:
+      - '\AppData\Local\Temp\'
+      - '\AppData\Local\Temp'
+      - '\Temp\'
+      - '\Windows\Temp\'
+  sel_vpn_tmp_markers:
+    TargetFilename|contains:
+      - '\VPN'
+    TargetFilename|endswith: '.tmp'
+
+  # Fire when Sysmon FileCreate (11) is created by cmdl32 and looks like VPN*.tmp in a TEMP path
+  condition: sel_eid11 and sel_image_path and sel_tmp_paths and sel_vpn_tmp_markers
+
+falsepositives:
+  - Legitimate Connection Manager activity that downloads/update files via CMDL32 into %TEMP% (VPN*.tmp).
+  - Enterprise VPN/profile deployment workflows using Connection Manager. Tune by allow-listing known profile hosts,
+    signed configurations, or expected execution contexts (parent process, command-line, user/group).
+level: low

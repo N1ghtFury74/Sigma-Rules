@@ -1,0 +1,54 @@
+title: CNC-E-2726320-175-NGen URL in Command Line (Process Creation)
+id: 4f6f8a2d-8a4b-4f0d-9df7-2726320175aa
+status: test
+description: |
+  Detects the .NET Native Image Generator (ngen.exe) started with a URL in the command line
+  (http/https/ftp). NGen’s legitimate purpose is to pre-compile managed assemblies and install
+  native images into the Native Image Cache; normal usage references LOCAL assemblies and does
+  **not** require network access. However, LOLBAS documents that `ngen.exe {REMOTEURL}` will
+  download the remote payload into **INetCache**, enabling ingress tool transfer (T1105).
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Ngen/          
+  - https://learn.microsoft.com/en-us/dotnet/framework/tools/ngen-exe-native-image-generator
+  - https://learn.microsoft.com/en-us/ef/ef6/fundamentals/performance/ngen
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---- Sysmon (Event ID 1) ----
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_proc:
+    Image|endswith: '\ngen.exe'
+  sel_sysmon_ofn:
+    OriginalFileName: 'ngen.exe'
+  sel_sysmon_url:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+
+  # ---- Windows Security (Event ID 4688) ----
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_proc:
+    NewProcessName|endswith: '\ngen.exe'
+  sel_4688_url:
+    ProcessCommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+
+  # Fire when NGen starts with a URL in CLI (either telemetry source)
+  condition: ( sel_sysmon_base and (sel_sysmon_proc or sel_sysmon_ofn) and sel_sysmon_url ) or ( sel_4688_base and sel_4688_proc and sel_4688_url )
+
+falsepositives:
+  - Rare: internal security testing or custom automation abusing NGen to fetch content.
+level: high

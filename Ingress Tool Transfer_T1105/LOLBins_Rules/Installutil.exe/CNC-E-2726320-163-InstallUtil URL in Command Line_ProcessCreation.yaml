@@ -1,0 +1,59 @@
+title: CNC-E-2726320-163-InstallUtil URL in Command Line (Process Creation)
+id: 3d9b7f4e-2f3e-4a1a-9f63-2726320163aa
+status: test
+description: |
+  Detects InstallUtil.exe launched with a URL in the command line (http/https/ftp).
+  InstallUtil is intended to install/execute local .NET assemblies; seeing network
+  locations in the arguments suggests ingress tool transfer or remote staging.
+  This mirrors the SPL logic that filters for InstallUtil with URL indicators.
+author: Mohamed Hanii
+date: 2025-10-02
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Installutil/
+  - https://learn.microsoft.com/dotnet/framework/tools/installutil-exe-installer-tool
+  - https://oddvar.moe/2017/12/13/applocker-case-study-how-insecure-is-it-really-part-1/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+  - attack.t1218
+  - attack.execution
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # -------- Sysmon (Event ID 1) --------
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_img:
+    Image|endswith: '\installutil.exe'
+  sel_sysmon_ofn:
+    OriginalFileName: 'InstallUtil.exe'
+  sel_sysmon_url:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+
+  # -------- Windows Security (Event ID 4688) --------
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_proc:
+    NewProcessName|endswith: '\installutil.exe'
+  sel_4688_url:
+    ProcessCommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+
+  # Fire when InstallUtil has URL indicators in CLI (either telemetry source)
+  condition: (
+      sel_sysmon_base and (sel_sysmon_img or sel_sysmon_ofn) and sel_sysmon_url
+    ) or (
+      sel_4688_base and sel_4688_proc and sel_4688_url
+    )
+
+falsepositives:
+  - Internal admin workflows that fetch assemblies or configs from approved internal web/FTP hosts.
+level: high

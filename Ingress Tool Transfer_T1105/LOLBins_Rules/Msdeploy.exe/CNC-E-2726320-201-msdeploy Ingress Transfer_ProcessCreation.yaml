@@ -1,0 +1,70 @@
+title: CNC-E-2726320-201-msdeploy Ingress Transfer via Sync Providers (Process Creation)
+id: 7f4b8a64-2a6e-4de3-9a20-2726320201aa
+status: test
+description: |
+  Flags Web Deploy (`msdeploy.exe`) command lines that indicate **remote-sourced sync** operations—
+  the classic *ingress tool transfer* pattern where content is **pulled down to this host**.
+  Web Deploy’s provider model (`-verb:sync -source:… -dest:…`) allows the **remote endpoint** to
+  appear on the *source* side (e.g., `computerName="https://server:8172/msdeploy.axd?site=…"`,
+  or the Agent at `http://server/MsDeployAgentService`), while `dest` targets a **local folder**
+  (`dirPath=…`) or other local provider. Microsoft’s docs and engineering posts show these exact
+  pull flows for downloading a site or content to disk, as well as the handler/agent endpoints and
+  their default ports (WMSvc handler **8172/HTTPS**, Agent service **80/HTTP**). Treat such
+  remote-URL/UNC-looking CLIs on `msdeploy.exe` as high signal for **Ingress Tool Transfer (T1105)**—
+  especially when `dest` resolves to writable paths on the local machine.
+  Note : Outside build/DevOps hosts and IIS admins, msdeploy.exe isn’t something you should see firing all the time. Most estates use it 
+  episodically (publish/migrate/backup), not as a background daemon.
+author: Mohamed Hanii
+date: 2025-10-08
+references:
+  - https://www.iis.net/downloads/microsoft/web-deploy
+  - https://skysigal.com/it/ad/msdeploy/howto/a_summary_of_the_msdeploy_syntax
+  - https://sedodream.com/2014/05/08/how-to-download-a-site-using-msdeployexe
+  - https://learn.microsoft.com/en-us/iis/publish/using-web-deploy/introduction-to-web-deploy
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---- Sysmon (EID 1) ----
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_img:
+    Image|endswith: '\msdeploy.exe'
+  sel_sysmon_ofn:
+    OriginalFileName: 'MSDEPLOY.EXE'
+
+  sel_sysmon_args_URLs:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+      - '//'
+
+  # ---- Windows Security (EID 4688) ----
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_img:
+    NewProcessName|endswith: '\msdeploy.exe'
+  sel_4688_args_URLs:
+    ProcessCommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+      - '//'
+
+  # Fire when msdeploy.exe runs with sync+provider args and a remote endpoint indicator
+  condition: |
+    ( sel_sysmon_base and (sel_sysmon_img or sel_sysmon_ofn) and sel_sysmon_args_URLs )
+    or
+    ( sel_4688_base and sel_4688_img and sel_4688_args_URLs )
+
+falsepositives:
+  - Legit “pull” operations by admins/CI: Backups, migrations, or diagnostics that **download** a site or config from a remote IIS endpoint to the local machine (e.g., `-source:contentPath, computerName=https://…/msdeploy.axd` → `-dest:dirPath=C:\…`). Verify the target is a sanctioned IIS host and the destination path is an approved working directory. 
+  - Developer/Build workflows using packages: Retrieving a Web Deploy **package** or pulling content during build/repro steps on authorized agents. Correlate with known parents (Visual Studio/MSBuild/agent services) and approved handler/agent URLs (8172/80). 
+  - Tuning tips: Allow-list your publish/backup servers and CI agents , and require that dest paths map to approved staging directories. Escalate when the remote host is **first-seen/Internet-facing**, the parent is an **ad-hoc shell on a user workstation**, or when a **write→execute** sequence follows in the destination path.
+level: high

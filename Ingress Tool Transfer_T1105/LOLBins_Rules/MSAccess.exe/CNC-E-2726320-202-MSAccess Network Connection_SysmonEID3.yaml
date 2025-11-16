@@ -1,0 +1,36 @@
+title: CNC-E-2726320-202-MSAccess Network Connection (Sysmon EID 3)
+id: 7f0ab8de-6d7a-45f5-9ab3-2726320202aa
+status: test
+description: |
+  Flags network connections attributed to MSAccess.exe. Access is primarily a desktop
+  database application and does not typically initiate arbitrary Internet egress by itself.
+  Network activity following an MSAccess launch with a URL (or activity to unknown Internet domains)
+  can indicate Ingress Tool Transfer (T1105). Review the destination domain/IP and correlate with
+  recent process-creation events and INetCache file writes.
+author: Mohamed Hanii
+date: 2025-10-08
+references:
+  - https://support.microsoft.com/en-us/office/command-line-switches-for-microsoft-office-products-079164cd-4ef5-4178-b235-441737deb3a6
+  - https://www.bleepingcomputer.com/news/security/hackers-can-abuse-microsoft-office-executables-to-download-malware/
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/Msaccess/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_img:
+    Image|endswith: '\MSACCESS.EXE'
+
+  condition: sel_eid3 and sel_img
+
+falsepositives:
+  - Accessing databases or documents stored on SharePoint/OneDrive or internal web services proxied by Office sign-in flows.
+  - Legitimate add-ins or automation that cause Access to contact known tenant endpoints. Tune with an allow-list of corporate/tenant domains and management egress proxies.
+level: medium

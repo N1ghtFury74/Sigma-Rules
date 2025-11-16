@@ -1,0 +1,36 @@
+title: CNC-E-2726320-203-MSAccess DNS Queries (Sysmon EID 22)
+id: e8d3f3c1-18a8-4b52-8c9c-2726320203aa
+status: test
+description: |
+  Detects DNS lookups initiated by MSAccess.exe. In many environments, Access runs locally
+  against files or LAN data sources; DNS activity—especially to unknown Internet domains—
+  is unusual and warrants investigation, particularly if correlated with URL-on-CLI launches
+  and subsequent INetCache writes (Ingress Tool Transfer, T1105).
+author: Mohamed Hanii
+date: 2025-10-08
+references:
+  - https://support.microsoft.com/en-us/office/command-line-switches-for-microsoft-office-products-079164cd-4ef5-4178-b235-441737deb3a6
+  - https://www.bleepingcomputer.com/news/security/hackers-can-abuse-microsoft-office-executables-to-download-malware/
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/Msaccess/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: dns_query
+
+detection:
+  sel_eid22:
+    EventID: 22
+  sel_img:
+    Image|endswith: '\MSACCESS.EXE'
+
+  condition: sel_eid22 and sel_img
+
+
+falsepositives:
+  - Opening or saving Access files hosted on SharePoint/OneDrive (tenant domains) or resolving intranet service endpoints used by Office integration.
+  - Enterprise automation that programmatically opens remote content via Access from sanctioned domains. Maintain an allow-list for tenant and intranet FQDNs.
+level: high

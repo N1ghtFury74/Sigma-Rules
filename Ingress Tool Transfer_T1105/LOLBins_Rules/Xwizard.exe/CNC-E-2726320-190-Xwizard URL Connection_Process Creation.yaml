@@ -1,0 +1,63 @@
+title: CNC-E-2726320-174-Xwizard /z + URL (INetCache Download) — Process Creation
+id: 7f6a0b5c-8c2e-4ab1-9a74-2726320174aa
+status: test
+description: |
+  Detects Xwizard.exe invoked to fetch a remote URL via the "/z" parameter, which the
+  LOLBAS project documents as downloading to INetCache (Ingress Tool Transfer, T1105).
+  Alert when /z is present with an Internet URL (http/https/ftp); tune by allow-listing
+  your approved RemoteApp/Workspace feed domains.
+  Context: Xwizard hosts Windows "wizards"; the RemoteApp/Workspace wizard supports a /z URL
+  that causes a download into INetCache. (See LOLBAS and Hexacorn.)
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Xwizard/        
+  - https://www.hexacorn.com/blog/2017/07/31/the-wizard-of-x-oppa-plugx-style/  
+tags:
+  - attack.t1105
+  - attack.command_and_control
+  - attack.t1218
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---- Sysmon (EID 1) ----
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_proc:
+    Image|endswith: '\xwizard.exe'
+  sel_sysmon_ofn:
+    OriginalFileName: 'XWizard.exe'
+  sel_sysmon_has_z:
+    CommandLine|contains: '/z'
+  sel_sysmon_url:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+
+  # ---- Windows Security (EID 4688) ----
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_proc:
+    NewProcessName|endswith: '\xwizard.exe'
+  sel_4688_has_z:
+    ProcessCommandLine|contains: '/z'
+  sel_4688_url:
+    ProcessCommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+
+  # Fire when: Xwizard + /z + URL
+  condition: 
+    ( sel_sysmon_base and ( sel_sysmon_proc or sel_sysmon_ofn ) and sel_sysmon_has_z and sel_sysmon_url ) 
+    or ( sel_4688_base and sel_4688_proc and sel_4688_has_z and sel_4688_url )
+
+falsepositives:
+  - Legitimate RemoteApp/Workspace provisioning using your corporate RD feed (often via Control Panel/Settings).
+  - Admin automation that seeds/refreshes Workspaces using approved internal URLs.
+  - Tuning tips: allow-list your RD feed domains; correlate with INetCache file creation and investigate execution from cache.
+level: high

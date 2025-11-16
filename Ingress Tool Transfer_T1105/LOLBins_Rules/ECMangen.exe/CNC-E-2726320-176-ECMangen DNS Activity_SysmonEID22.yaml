@@ -1,0 +1,36 @@
+title: CNC-E-2726320-176-ECMangen DNS Activity (Sysmon EID 22)
+id: 8c4a2cf2-1c9a-4a9a-8b78-2726320176aa
+status: test
+description: |
+  Flags DNS lookups issued by **ECMangen.exe** (Sysmon EID 22). Per LOLBAS, when ECMangen (aka **ECManGen**)
+  is abused with a URL on the CLI , it can fetch remote content into **INetCache**—often preceded by
+  unexpected DNS queries (T1105). Outside that case, ECMangen is a Windows SDK GUI for **ETW manifest**
+  authoring and normally works on local XML with no network. Microsoft’s eventing docs explicitly recommend
+  ECManGen for creating/editing manifests, and newer SDKs removed it—advising devs to hand-edit the XML schema
+  instead. Sysmon EID 22 ties each DNS query to the exact process, aiding correlation with process creation and
+  INetCache writes.
+author: Mohamed Hanii
+date: 2025-10-08
+references:
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/ECMangen/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: dns_query
+
+detection:
+  sel_eid22:
+    EventID: 22
+  sel_image:
+    Image|endswith: '\ECMangen.exe'
+
+  # Fire on DNS queries issued by ECMangen.exe
+  condition: sel_eid22 and sel_image
+
+falsepositives:
+  - Managed Exchange/PKI operations resolving approved internal hosts. Tune with an allowlist of sanctioned domains.
+level: high

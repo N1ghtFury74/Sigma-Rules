@@ -1,0 +1,68 @@
+title: CNC-E-2726320-146-Extrac32 UNC Copy/Extraction (Process Creation)
+id: 2e7b3b26-9b4c-4e6a-9e46-2726320146aa
+status: test
+description: |
+  Detects extrac32.exe (the built-in CAB extractor) used in ways consistent with ingress/copy behavior:
+  invoking a UNC source path (SMB/WebDAV) and either copy mode (/C) or CAB extraction indicators.
+author: Mohamed Hanii
+date: 2025-10-02
+references:
+  - https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/extract
+  - https://lolbas-project.github.io/lolbas/Binaries/Extrac32/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # -------- Sysmon (Event ID 1) --------
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_image:
+    Image|endswith: '\extrac32.exe'
+  sel_sysmon_ofn:
+    OriginalFileName: 'EXTRAC32.EXE'
+
+  # UNC / WebDAV indicators on command line (ingress/copy behavior)
+  sel_sysmon_cli_unc:
+    CommandLine|contains:
+      - '\\\\'            # UNC path (SMB/WebDAV)
+      - '\DavWWWRoot'     # WebDAV redirector
+      - '@SSL'            # HTTPS WebDAV marker
+
+  sel_sysmon_cli_arguments:
+    CommandLine|contains|all: 
+      - '/y'
+      - '/c'
+
+  # -------- Windows Security (Event ID 4688) --------
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_proc:
+    NewProcessName|endswith: '\extrac32.exe'
+
+  sel_4688_cli_unc:
+    ProcessCommandLine|contains:
+      - '\\\\'
+      - '\DavWWWRoot'
+      - '@SSL'
+
+  sel_4688_cli_D:
+    ProcessCommandLine|contains|all: 
+      - '/y'
+      - '/c'
+
+  # Fire when extrac32.exe runs AND (UNC/WebDAV present) AND (copy mode or CAB indicator)
+  condition: 
+    ( sel_sysmon_base and (sel_sysmon_image or sel_sysmon_ofn) and sel_sysmon_cli_unc and sel_sysmon_cli_arguments )
+     or 
+    ( sel_4688_base and sel_4688_proc and sel_4688_cli_unc and  sel_4688_cli_argumnets )
+
+falsepositives:
+  - Normal extractor usage: unpacking local or internal-share CABs (software distribution, drivers/patches, packaging scripts).
+  - Copy mode in admin scripts: extrac32 /c used with internal SMB/WebDAV sources to place files locally; `/y` is common and not inherently malicious.
+  - Noisy environments: organizations that routinely extract CABs or copy from approved shares will trigger frequently—tune with allowlists for known hosts/shares and expected command-line patterns.
+level: medium

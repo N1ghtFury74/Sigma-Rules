@@ -1,0 +1,38 @@
+title: CNC-E-2726320-157-HH.exe FileCreate (Unexpected — Sysmon EID 11)
+id: 9b5e7a1f-8c43-4b0e-84a2-2726320157aa
+status: test
+description: |
+  Detects any file creation attributed to HH.exe (Sysmon Event ID 11). HH.exe is the HTML Help
+  viewer for compiled help files (.chm) and primarily loads content via the Help ActiveX control.
+  File creation is not part of typical viewing behavior; any FileCreate by HH.exe may indicate
+  abuse of CHM-based execution or embedded scripts writing to disk.
+  Investigation Tip : pair with process creation of HH.exe using suspicious switches, or restrict to user-writable drop paths to increase fidelity.
+author: Mohamed Hanii
+date: 2025-10-02
+references:
+  - https://learn.microsoft.com/en-us/previous-versions/windows/desktop/htmlhelp/about-the-html-help-executable-program
+  - https://learn.microsoft.com/en-us/previous-versions/windows/desktop/htmlhelp/using-command-line-switches
+  - https://lolbas-project.github.io/lolbas/Binaries/Hh/
+  - https://oddvar.moe/2017/08/13/bypassing-device-guard-umci-using-chm-cve-2017-8625/
+tags:
+  - attack.defense_evasion
+  - attack.t1059
+  - attack.t1105
+
+logsource:
+  product: windows
+  category: file_event
+  service: sysmon
+
+detection:
+  sel_eid11:
+    EventID: 11
+  sel_image:
+    Image|endswith: '\hh.exe'
+
+  condition: sel_eid11 and sel_image 
+
+
+falsepositives:
+  - Rare; consider unusual help integrations or third-party tools invoking HH.exe. Validate parent process, command line/switches, and write location.
+level: high

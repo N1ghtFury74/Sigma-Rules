@@ -1,0 +1,38 @@
+title: CNC-E-2726320-190C-msxsl Suspicious DNS Query (Sysmon EID 22)
+id: a6c0a7c4-91ec-4a51-8d7f-2726320190cc
+status: test
+description: |
+  Detects msxsl.exe performing DNS lookups. msxsl is typically used with local XML/XSL files and
+  does not need DNS. DNS activity indicates remote inputs/outputs or external includes, consistent
+  with the LOLBAS pattern of using URLs for transforms (T1105/T1220). Investigate the queried domains
+  and correlate to process command line and subsequent file writes.
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/Msxsl/      
+  - http://digcode.com/posts/t2340/MSXSL-EXE-Microsoft-Command-Line-XSL-Transformation-Utility
+  - https://redcanary.com/blog/threat-detection/detecting-msxsl-attacks/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+  - attack.t1220
+
+logsource:
+  product: windows
+  service: sysmon
+  category: dns_query
+
+detection:
+  sel_eid22:
+    EventID: 22
+  sel_image:
+    Image|endswith: '\msxsl.exe'
+
+  # Fire on any DNS query initiated by msxsl
+  condition: sel_eid22 and sel_image
+
+
+falsepositives:
+  - Uncommon but possible in dev environments where msxsl references remote XML/XSL via FQDN.
+  - Tuning: allow-list trusted internal domains used by build/ETL jobs; investigate new or Internet domains.
+level: high

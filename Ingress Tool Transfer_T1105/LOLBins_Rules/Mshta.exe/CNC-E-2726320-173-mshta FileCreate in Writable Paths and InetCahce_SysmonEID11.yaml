@@ -1,0 +1,137 @@
+title: CNC-E-2726320-173-mshta FileCreate in Writable/INetCache Paths (Sysmon EID 11)
+id: 6a4b1e22-5f3c-4b8f-8a77-2726320173aa
+status: test
+description: |
+  Detects files created by mshta.exe in common user-writable and cache locations, including
+  INetCache and Temp. mshta can download remote content into INetCache when invoked with a URL,
+  so unexpected file drops by mshta warrant review.
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Mshta/            # LOLBAS: mshta can Download to INetCache
+  - https://www.elastic.co/guide/en/security/8.19/suspicious-execution-from-inet-cache.html
+  - https://lolbas-project.github.io/lolbas/Binaries/Mshta/
+  - https://redcanary.com/threat-detection-report/trends/initial-access/
+  - https://redcanary.com/threat-detection-report/techniques/mshta/
+  - https://www.elastic.co/docs/reference/security/prebuilt-rules/rules/windows/defense_evasion_mshta_beacon
+  - https://help.fortinet.com/fsiem/Public_Resource_Access/7_2_3/rules/PH_RULE_Remotely_Hosted_HTA_File_Executed_Via_Mshta_EXE.htm
+  
+tags:
+  - attack.t1105
+  - attack.command_and_control
+  - attack.defense_evasion
+
+logsource:
+  product: windows
+  service: sysmon
+  category: file_event
+
+detection:
+  sel_eid11:
+    EventID: 11
+  sel_proc:
+    Image|endswith: '\mshta.exe'
+
+  # Writable/cache paths of interest (applied to TargetFilename)
+  writable_path:
+    TargetFilename|contains:
+      - ':\$Recycle.Bin\'
+      - ':\AMD\Temp\'
+      - ':\Intel\'
+      - ':\PerfLogs\'
+      - ':\Windows\addins\'
+      - ':\Windows\appcompat\'
+      - ':\Windows\apppatch\'
+      - ':\Windows\AppReadiness\'
+      - ':\Windows\bcastdvr\'
+      - ':\Windows\Boot\'
+      - ':\Windows\Branding\'
+      - ':\Windows\CbsTemp\'
+      - ':\Windows\Containers\'
+      - ':\Windows\csc\'
+      - ':\Windows\Cursors\'
+      - ':\Windows\debug\'
+      - ':\Windows\diagnostics\'
+      - ':\Windows\DigitalLocker\'
+      - ':\Windows\dot3svc\'
+      - ':\Windows\en-US\'
+      - ':\Windows\Fonts\'
+      - ':\Windows\Globalization\'
+      - ':\Windows\Help\'
+      - ':\Windows\IdentityCRL\'
+      - ':\Windows\IME\'
+      - ':\Windows\ImmersiveControlPanel\'
+      - ':\Windows\INF\'
+      - ':\Windows\intel\'
+      - ':\Windows\L2Schemas\'
+      - ':\Windows\LiveKernelReports\'
+      - ':\Windows\Logs\'
+      - ':\Windows\media\'
+      - ':\Windows\Migration\'
+      - ':\Windows\ModemLogs\'
+      - ':\Windows\ms\'
+      - ':\Windows\OCR\'
+      - ':\Windows\panther\'
+      - ':\Windows\Performance\'
+      - ':\Windows\PLA\'
+      - ':\Windows\PolicyDefinitions\'
+      - ':\Windows\Prefetch\'
+      - ':\Windows\PrintDialog\'
+      - ':\Windows\Provisioning\'
+      - ':\Windows\Registration\CRMLog\'
+      - ':\Windows\RemotePackages\'
+      - ':\Windows\rescache\'
+      - ':\Windows\Resources\'
+      - ':\Windows\SchCache\'
+      - ':\Windows\schemas\'
+      - ':\Windows\security\'
+      - ':\Windows\ServiceState\'
+      - ':\Windows\servicing\'
+      - ':\Windows\Setup\'
+      - ':\Windows\ShellComponents\'
+      - ':\Windows\ShellExperiences\'
+      - ':\Windows\SKB\'
+      - ':\Windows\TAPI\'
+      - ':\Windows\Tasks\'
+      - ':\Windows\TextInput\'
+      - ':\Windows\tracing\'
+      - ':\Windows\Vss\'
+      - ':\Windows\WaaS\'
+      - ':\Windows\Web\'
+      - ':\Windows\wlansvc\'
+      - ':\Windows\System32\Com\dmp\'
+      - ':\Windows\System32\FxsTmp\'
+      - ':\Windows\System32\Microsoft\Crypto\RSA\MachineKeys\'
+      - ':\Windows\System32\Speech\'
+      - ':\Windows\System32\spool\drivers\color\'
+      - ':\Windows\System32\spool\PRINTERS\'
+      - ':\Windows\System32\spool\SERVERS\'
+      - ':\Windows\System32\Tasks_Migrated\Microsoft\Windows\PLA\System\'
+      - ':\Windows\System32\Tasks\'
+      - ':\Windows\SysWOW64\Com\dmp\'
+      - ':\Windows\SysWOW64\FxsTmp\'
+      - ':\Windows\SysWOW64\Tasks\'
+      # Explicit browser/IE cache paths of interest
+      - '\AppData\Local\Microsoft\Windows\INetCache\'
+      - '\AppData\Local\Microsoft\Windows\Temporary Internet Files\'
+      - '\AppData\Local\Temp\'
+      - '\Windows\Temp\'
+      - '\Users\'
+      - '\Downloads\'
+      - '\Desktop\'
+
+  condition: sel_eid11 and sel_proc and writable_path
+
+fields:
+  - Image
+  - TargetFilename
+  - ProcessGuid
+  - User
+  - ParentImage
+  - ParentCommandLine
+
+falsepositives:
+  - INetCache or Temporary Internet Files: When mshta is invoked with a URL, Windows may cache downloaded content under INetCache/Temporary Internet Files by design; this can be legitimate in admin workflows. :contentReference[oaicite:0]{index=0}
+  - Administrative tooling : Enterprise scripts or management tools that leverage mshta or HTA content can legitimately drop files in Temp, INetCache, or other writable paths.
+  - Tuning tips : Pair with prior mshta process events containing URLs (EID 1, 4688); allow-list sanctioned parent processes and approved internal domains/CDNs; escalate when files land in unusual user-writable paths or are followed by execution.
+level: high

@@ -1,0 +1,67 @@
+title: CNC-E-2726320-201-ProtocolHandler URL on Command Line (Proc Creation)
+id: 2726320-201-protocolhandler-proc-url
+status: test
+description: 
+  Flags ProtocolHandler.exe was launched with a web URL (http, https, or ftp) on the command line.
+  Typically, ProtocolHandler acts as the Office URI helper. It receives Office or HTTP URLs and
+  delegates them to the registered handler—usually the default browser or an Office application—
+  instead of retrieving the content itself. This behavior results in a brief child browser process,
+  and any network activity is attributed to that browser or app. Microsoft provides documentation
+  on the Office URI scheme that governs this launch behavior.
+author: Mohamed Hanii
+date: 2025-10-14
+references:
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/ProtocolHandler/ 
+  - https://mthcht.medium.com/lolbas-detection-serie-2-mspub-exe-protocolhandler-exe-msohtmed-exe-356accfc2bff
+  - https://learn.microsoft.com/en-us/answers/questions/1190516/protocolhandler-exe-and-office-uri-scheme-no-longe
+  - https://learn.microsoft.com/en-us/answers/questions/1190516/protocolhandler-exe-and-office-uri-scheme-no-longe
+tags:
+  - attack.command_and_control
+  - attack.t1105
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # Sysmon EID 1
+  sel_sysmon_EID:
+    EventID: 1
+  sel_sysmon_img:
+    Image|endswith: '\ProtocolHandler.exe'
+  sel_sysmon_ofn:
+    OriginalFileName: 'ProtocolHandler.exe'
+  sel_url_markers_sysmon:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+      - '://'
+
+
+  # Windows Security 4688
+  sel_4688:
+    EventID: 4688
+    NewProcessName|endswith: '\ProtocolHandler.exe'
+  sel_4688_url:
+    ProcessCommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+      - '://'
+
+
+  condition: 
+    (sel_sysmon and (sel_sysmon_img or sel_sysmon_ofn ) and sel_url_markers_sysmon) 
+    or (sel_4688 and sel_4688_url)
+
+level: high
+falsepositives:
+  - Legitimate Office/Edge integration that invokes ProtocolHandler.exe with sanctioned internal URLs.Will find this used in ProcHandler.exe command line - General form: <scheme-name>:<command>|<arg-descriptor>|<argument> : 
+    - ms-word: → Microsoft Word (supports ofe, ofv, nft).
+    - ms-powerpoint: → Microsoft PowerPoint (supports ofe, ofv, nft).
+    - ms-excel: → Microsoft Excel (supports ofe, ofv, nft).
+    - ms-visio: → Microsoft Visio (supports ofe, ofv, nft).
+    - ms-project: → Microsoft Project (supports ofe, ofv, nft).
+    - ms-publisher: → Microsoft Publisher (supports ofe, ofv, nft).
+    - ms-spd: → SharePoint Designer (ofe only; “ms-spd” is the scheme name used for SharePoint Designer).
+    - ms-infopath: → InfoPath (supports ofe and ofv).

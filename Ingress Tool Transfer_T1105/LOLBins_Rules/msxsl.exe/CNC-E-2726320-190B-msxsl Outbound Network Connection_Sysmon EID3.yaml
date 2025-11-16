@@ -1,0 +1,37 @@
+title: CNC-E-2726320-190B-msxsl Outbound Network Connection (Sysmon EID 3)
+id: 0f1f5a0f-1b44-4c32-8f4e-2726320190bb
+status: test
+description: |
+  Detects outbound network connections attributed to msxsl.exe. Normal msxsl usage transforms
+  local XML/XSL; LOLBAS shows it can accept remote URLs and thus fetch content to write locally
+  (Ingress Tool Transfer, T1105). Any msxsl-driven egress should be investigated, especially to
+  non-allowlisted Internet domains.
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/Msxsl/      
+  - http://digcode.com/posts/t2340/MSXSL-EXE-Microsoft-Command-Line-XSL-Transformation-Utility
+  - https://redcanary.com/blog/threat-detection/detecting-msxsl-attacks/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+  - attack.t1220
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_image:
+    Image|endswith: '\msxsl.exe'
+
+  # Fire when msxsl establishes a network connection (any destination)
+  condition: sel_eid3 and sel_image
+
+falsepositives:
+  - Rare but possible: dev/build scripts or legacy workflows that deliberately point msxsl to HTTP(S) sources.
+  - Tuning: pair with a preceding process event showing URL-on-CLI; allow-list sanctioned internal hosts; scrutinize Internet egress.
+level: medium

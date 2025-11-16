@@ -1,0 +1,38 @@
+title: CNC-E-2726320-147-Extrac32 Network Connection to SMB/WebDAV (Sysmon EID 3)
+id: 2e7b3b26-9b4c-4e6a-9e46-2726320147aa
+status: test
+description: |
+  Detects extrac32.exe (the built-in CAB extractor) establishing outbound network connections
+  observed by Sysmon Event ID 3. While extrac32 itself isn’t an HTTP client, “download/copy”
+  behavior appears when the **source is a UNC path**:
+    - **SMB UNC** (e.g., \\server\share\file.cab or /C \\server\share\src dest) → traffic on **445/TCP**.
+    - **WebDAV UNC** (e.g., \\host\DavWWWRoot\path\file or \\host@SSL\DavWWWRoot\path\file) → traffic on **80/443**.
+  Seeing extrac32.exe connect to **445/80/443** can indicate UNC-based ingress/copy activity that warrants investigation.
+author: Mohamed Hanii
+date: 2025-10-02
+references:
+  - https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/extract
+  - https://lolbas-project.github.io/lolbas/Binaries/Extrac32/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_image:
+    Image|endswith: '\extrac32.exe'
+
+  # Fire when Sysmon NetworkConnect (3) is attributed to extrac32.exe and targets SMB or HTTP(S) ports
+  condition: sel_eid3 and sel_image 
+
+falsepositives:
+  - Routine **CAB extraction** or **copy mode (/C)** to/from approved internal SMB/WebDAV shares (software distribution, drivers/patches, packaging scripts).
+  - Admin/IT automation that legitimately pulls from UNC paths and writes locally; note **/Y** simply suppresses prompts and is common in benign scripts.
+  - Tune by allow-listing known internal file servers/SharePoint/WebDAV hosts and correlating with process command line (e.g., presence of `\\server\...`, `\DavWWWRoot`, or `/C`).
+level: high

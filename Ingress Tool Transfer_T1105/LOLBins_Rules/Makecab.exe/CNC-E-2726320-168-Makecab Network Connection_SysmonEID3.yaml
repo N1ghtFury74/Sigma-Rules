@@ -1,0 +1,44 @@
+title: CNC-E-2726320-142-Makecab Network Connection to HTTP(S) Ports (Sysmon EID 3)
+id: 5c8e1f4f-7f21-4a1a-bc42-2726320142aa
+status: test
+description: |
+  Detects Makecab (makecab.exe) establishing network connections on ports 80 or 443.
+  While makecab itself isn’t an HTTP client, it accepts remote paths as input:
+    - SMB UNC: \\server\share\file → Windows fetches over TCP 445; makecab writes a local .cab. -> Not min focus with this technique
+    - WebDAV UNC: \\host\DavWWWRoot\path\file or \\host@SSL\DavWWWRoot\path\file → WebDAV Redirector pulls over HTTP/HTTPS (80/443); makecab writes a local .cab.
+  Seeing makecab.exe with outbound 80/443 may indicate WebDAV-based fetch-and-pack activity that warrants investigation.
+author: Mohamed Hanii
+date: 2025-10-06
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Makecab/
+  - https://learn.microsoft.com/windows/win32/cmpapi/makecab-exe
+  - https://ss64.com/nt/makecab-directives.html
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_image:
+    Image|endswith: '\makecab.exe'
+  sel_http_ports:
+    DestinationPort: # The LOLBin can only connect to three port 80 ,443 (Ingress Transfer Tool ) and 445 SMB another technique
+      - 80
+      - 443
+
+  # Fire when Sysmon NetworkConnect (3) is attributed to makecab.exe and targets HTTP(S) ports
+  condition: sel_eid3 and sel_image and sel_http_ports
+
+falsepositives:
+  - Administrative packaging tasks that fetch a file (e.g., via WebDAV/SMB published shares).
+  - Build/packaging workflows: bundling files into CABs (single file or via DDF).
+  - Driver/deployment scenarios: .cab distribution/handling by Windows or deployment tooling.
+  - MSI/setup flows: Windows Installer interacting with external CABs.
+
+level: high

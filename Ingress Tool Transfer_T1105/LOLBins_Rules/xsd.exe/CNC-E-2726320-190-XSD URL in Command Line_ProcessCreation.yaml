@@ -1,0 +1,51 @@
+title: CNC-E-2726320-190-XSD URL in Command Line (Process Creation)
+id: 6b7a1f1d-6f3c-4a4b-a190-2726320190aa
+status: test
+description: |
+  Detects xsd.exe (XML Schema Definition tool) launched with a URL in the command line (http/https/ftp).
+  LOLBAS documents that xsd.exe can fetch remote content into INetCache when given a URL, enabling
+  ingress tool transfer (T1105). Normally xsd.exe is used locally to generate schemas/classes from
+  on-disk inputs without network access.
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/xsd/      
+  - https://learn.microsoft.com/en-us/dotnet/standard/serialization/xml-schema-definition-tool-xsd-exe  
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---- Sysmon (EID 1) ----
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_proc:
+    Image|endswith: '\xsd.exe'
+    OriginalFileName: 'xsd.exe'
+  sel_sysmon_url:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+
+  # ---- Windows Security (EID 4688) ----
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_proc:
+    NewProcessName|endswith: '\xsd.exe'
+  sel_4688_url:
+    ProcessCommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+
+  # Fire when xsd.exe is executed with a URL in the CLI
+  condition: (sel_sysmon_base and sel_sysmon_proc and sel_sysmon_url) or (sel_4688_base and sel_4688_proc and sel_4688_url)
+
+falsepositives:
+  - Legit dev/CI use: MSBuild/Visual Studio or SDK-installed xsd.exe fetching schemas/WSDLs from internal HTTP(S) endpoints during codegen/inference on dev PCs or build agents.
+level: high

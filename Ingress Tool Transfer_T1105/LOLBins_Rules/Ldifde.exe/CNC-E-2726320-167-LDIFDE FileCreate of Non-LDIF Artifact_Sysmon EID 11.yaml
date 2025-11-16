@@ -1,0 +1,44 @@
+title: CNC-E-2726320-167-LDIFDE FileCreate of Non-LDIF Artifact (Sysmon EID 11)
+id: 0b7c9c2c-1c3d-4a8a-9ebd-2726320167aa
+status: test
+description: |
+  Detects file creation events attributed to ldifde.exe where the created file is **not**
+  an LDIF (.ldif/.ldf). Although LDIFDE is an LDAP tool (not a web client), LDIF imports
+  can embed URL value-specs (`:< http(s)://...`) that cause the system to retrieve remote
+  content (of any type) into the IE/INetCache temp area during processing. This rule flags
+  those side-effect downloads by focusing on non-LDIF outputs written by ldifde.exe.
+author: Mohamed Hanii
+date: 2025-10-02
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Ldifde/
+  - https://www.rfc-editor.org/rfc/rfc2849
+  - https://x.com/0gtweet/status/1564968845726580736 -> Showing text file download
+tags:
+  - attack.t1105
+  - attack.command_and_control
+  - attack.collection
+
+logsource:
+  product: windows
+  category: file_event
+  service: sysmon
+
+detection:
+  sel_eid11:
+    EventID: 11
+  sel_proc_image:
+    Image|endswith: '\ldifde.exe'
+
+  # Exclude files that are actual LDIF exports/imports
+  sel_ldif_ext:
+    TargetFilename|endswith:
+      - '.ldif'
+      - '.ldf'
+
+  # Fire when ldifde.exe creates any file that is NOT .ldif/.ldf
+  condition: sel_eid11 and sel_proc_image and not sel_ldif_ext
+
+
+falsepositives:
+  - Unkown. Potentially malicious.
+level: high

@@ -1,0 +1,34 @@
+title: CNC-E-2726320-203-MSPUB DNS Queries (Sysmon EID 22)
+id: e0de8c8b-3b5d-4f2d-84e2-2726320203aa
+status: test
+description: |
+  Detects DNS queries initiated by mspub.exe (Sysmon EID 22). Publisher typically handles local
+  documents and should rarely originate DNS lookups. In conjunction with the known LOLBIN pattern
+  of launching Publisher with a URL (which can fetch to INetCache), Publisher-owned DNS activity
+  is suspicious and merits triage (destination domain, timing, subsequent file drops).
+references:
+  - IOC section in : https://lolbas-project.github.io/lolbas/OtherMSBinaries/Mspub/
+  - https://www.bleepingcomputer.com/news/security/hackers-can-abuse-microsoft-office-executables-to-download-malware/
+author: Mohamed Hanii
+date: 2025-10-10
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: dns_query
+
+detection:
+  sel_eid22:
+    EventID: 22
+  sel_image:
+    Image|endswith: '\mspub.exe'
+
+  # Alert on any Publisher-owned DNS query; enrich with domain reputation
+  condition: sel_eid22 and sel_image
+
+falsepositives:
+  - Opening .pub files directly from trusted cloud storage (e.g., SharePoint/OneDrive).
+level: medium

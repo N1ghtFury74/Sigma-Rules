@@ -1,0 +1,82 @@
+title: CNC-E-2726320-174-PhotoViewer.dll URL via Rundll32 → INetCache (Proc Creation)
+id: 1f2c3d4e-aaaa-4b55-9f11-2726320174aa
+status: test
+description: |
+  Detects `rundll32.exe` invoking Windows Photo Viewer’s COM-style entrypoint
+  **ImageView_Fullscreen** in **PhotoViewer.dll** with a **remote URL** on the
+  command line. This behavior is documented by LOLBAS: when called with an
+  `http(s)://` (or other URL with `://`), the Photo Viewer code path uses the
+  Windows web stack and **downloads the resource into the user’s INetCache**,
+  which defenders classify as **Ingress Tool Transfer (T1105)**. On modern
+  Windows, Photo Viewer is a DLL (not a standalone EXE) located under
+  `C:\Program Files\Windows Photo Viewer\PhotoViewer.dll`, and the shell can
+  launch it via `rundll32.exe`. Treat URL-based invocation as suspicious outside
+  of very narrow/legacy image-viewing workflows or testing scenarios. Correlate
+  with **file writes in INetCache** and any **follow-on execution** from there.
+author: Mohamed Hanii
+date: 2025-10-08
+references:
+   - https://lolbas-project.github.io/lolbas/Libraries/Scrobj/                         
+   - https://mobile.twitter.com/eral4m/status/1479106975967240209                      
+   - https://nasbench.medium.com/a-deep-dive-into-rundll32-exe-642344b41e90
+   - https://detection.fyi/elastic/detection-rules/windows/defense_evasion_unusual_network_connection_via_rundll32/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---- Sysmon (EID 1) ----
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_host:
+    Image|endswith: '\rundll32.exe'
+  sel_sysmon_ofn:                 
+    OriginalFileName: 'RUNDLL32.EXE'
+  sel_sysmon_photoviewer:
+    CommandLine|contains:
+      - 'PhotoViewer.dll,ImageView_Fullscreen'
+  sel_sysmon_url:
+    CommandLine|contains:
+      - '://'
+      - 'http'
+      - 'https'
+      - 'ftp'
+
+  # ---- Windows Security (EID 4688) ----
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_host:
+    NewProcessName|endswith: '\rundll32.exe'
+  sel_4688_photoviewer:
+    ProcessCommandLine|contains:
+      - 'PhotoViewer.dll,ImageView_Fullscreen'
+  sel_4688_url:
+    ProcessCommandLine|contains:
+      - '://'
+      - 'http'
+      - 'https'
+      - 'ftp'
+
+  # Fire when rundll32 calls PhotoViewer ImageView_Fullscreen with a URL
+  condition:
+    ( sel_sysmon_base and ( sel_sysmon_host or sel_sysmon_ofn ) and sel_sysmon_photoviewer and sel_sysmon_url )
+    or
+    ( sel_4688_base and sel_4688_host and sel_4688_photoviewer and sel_4688_url )
+
+falsepositives:
+  - Legacy/intranet image previewing : old workflows that open images by URL (e.g., internal CMS, helpdesk tools) can legitimately trigger this path.
+  - User action via .url/shortcut files : a user double-clicks a shortcut that points to an image on an intranet site, causing Photo Viewer to fetch it.
+  - Automation and QA harnesses : UI testing or automation that exercises Photo Viewer with URLs.
+  - Security tooling : link-preview or safe-browsing tools that deliberately render remote images for analysis could surface the same command line.
+  - Tuning guidance (recommended) :
+      -  Allow-list **approved corporate domains**; alert on unknown Internet domains.
+      - Suppress when **ParentImage=explorer.exe** and the URL’s domain is sanctioned.
+      - Raise severity when the destination file is created under **INetCache** and a **child process** executes from that cache within a short window.
+      - Raise severity when `rundll32.exe` is **not** from `%SystemRoot%\System32\` **or** when `OriginalFileName` ≠ `RUNDLL32.EXE` (masquerade).
+      - Correlate with **network connection** telemetry and **file creation** events to avoid alerting on process creation alone.
+
+level: high

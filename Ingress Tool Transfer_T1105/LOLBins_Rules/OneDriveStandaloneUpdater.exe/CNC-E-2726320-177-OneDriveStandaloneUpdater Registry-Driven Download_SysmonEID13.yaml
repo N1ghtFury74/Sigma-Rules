@@ -1,0 +1,36 @@
+title: CNC-E-2726320-177-OneDriveStandaloneUpdater Registry-Driven Download (Sysmon EID 13)
+id: 3aff0be0-7802-4a7e-a4fa-c60c74bc5e1d
+status: test
+description: |
+  Detects setting a custom URL for OneDriveStandaloneUpdater.exe so the updater will
+  download remote content on its next scheduled run, without any suspicious process
+  arguments. The payload is written to:
+    %LocalAppData%\Microsoft\OneDrive\StandaloneUpdater\PreSignInSettingsConfig.json
+  High-signal indicator for ingress tool transfer (T1105); correlate with a subsequent
+  OneDriveStandaloneUpdater run and the JSON file creation.
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/OneDriveStandaloneUpdater/
+  - https://github.com/LOLBAS-Project/LOLBAS/pull/153
+tags:
+  - attack.command_and_control
+  - attack.t1105
+
+logsource:
+  product: windows
+  service: sysmon
+  category: registry_set
+
+detection:
+  sel_eid13:
+    EventID: 13
+  sel_key_value:
+    TargetObject|contains: '\Software\Microsoft\OneDrive\UpdateOfficeConfig\UpdateRingSettingURLFromOC'
+  condition: sel_eid13 and sel_key_value 
+
+falsepositives:
+  - Legitimate OneDrive configuration pointing to **Microsoft-owned** update endpoints (CDNs/domains).
+  - Tenant tooling or troubleshooting that intentionally sets this value.
+  - Tuning tips: maintain an allow-list of sanctioned Microsoft/tenant endpoints; correlate with a OneDriveStandaloneUpdater scheduled task run and creation/modify of %LocalAppData%\Microsoft\OneDrive\StandaloneUpdater\PreSignInSettingsConfig.json before suppressing.
+level: high

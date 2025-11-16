@@ -1,0 +1,66 @@
+title: CNC-E-2726320-179-OneDriveStandaloneUpdater Registry URL Set via CLI (Process Creation)
+id: a2d5b6f1-7b62-4c21-9f70-2726320179aa
+status: test
+description: |
+  Detects processes whose **command line** sets OneDrive Standalone Updater’s registry URL so the updater
+  will download remote content on its next run—**without** needing suspicious arguments on the updater itself.
+  Per LOLBAS, the download is driven by values under:
+    HKCU\Software\Microsoft\OneDrive\UpdateOfficeConfig\
+  Specifically:
+    • UpdateRingSettingURLFromOC → attacker-controlled http/https URL
+    • ODSUUpdateXMLUrlFromOC and UpdateXMLUrlFromOC → any **non-empty** strings
+    • UpdateOfficeConfigTimestamp → large QWORD (e.g., 99999999999) to treat cache as fresh
+  When present, OneDriveStandaloneUpdater.exe will fetch the URL and write to:
+    %LocalAppData%\Microsoft\OneDrive\StandaloneUpdater\PreSignInSettingsConfig.json
+  This enables Ingress Tool Transfer (T1105). Rule matches **only by command-line patterns** (no process-name dependency).
+author: Mohamed Hanii
+date: 2025-10-07
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/OneDriveStandaloneUpdater/        # Registry-driven download + JSON path
+  - https://learn.microsoft.com/en-us/sysinternals/downloads/sysmon                     # Sysmon EID 1 (process creation)
+  - https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4688  # 4688 + command line
+tags:
+  - attack.command_and_control
+  - attack.t1105
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # -------- Sysmon (EID 1) --------
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_targets_key:
+    CommandLine|contains:
+      - '\Software\Microsoft\OneDrive\UpdateOfficeConfig\UpdateRingSettingURLFromOC'
+  #sel_sysmon_companion_values:
+   # CommandLine|contains:
+    #  - 'ODSUUpdateXMLUrlFromOC'
+     # - 'UpdateXMLUrlFromOC'
+    #  - 'UpdateOfficeConfigTimestamp'
+
+  # -------- Windows Security (EID 4688) --------
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_targets_key:
+    ProcessCommandLine|contains:
+      - '\Software\Microsoft\OneDrive\UpdateOfficeConfig\UpdateRingSettingURLFromOC'
+  # sel_4688_companion_values:
+    # ProcessCommandLine|contains:
+      #- 'ODSUUpdateXMLUrlFromOC'
+      #- 'UpdateXMLUrlFromOC'
+      #- 'UpdateOfficeConfigTimestamp'
+      #- '99999999999'
+
+  # Fire when a process command line aims to set the OneDrive updater URL and companion values
+  condition: 
+   ( sel_sysmon_base and sel_sysmon_targets_key ) 
+   or 
+   ( sel_4688_base and sel_4688_targets_key )
+
+falsepositives:
+  - Legitimate OneDrive configuration/repair scripts that set these values to **Microsoft-owned** endpoints (e.g., *.microsoft.com, officecdn.microsoft.com). Maintain an allow-list for sanctioned domains.
+  - Tenant tooling that seeds these keys for troubleshooting. Correlate with a subsequent run of **OneDriveStandaloneUpdater.exe** and creation/modify of
+    `%LocalAppData%\Microsoft\OneDrive\StandaloneUpdater\PreSignInSettingsConfig.json` before suppression.
+level: high

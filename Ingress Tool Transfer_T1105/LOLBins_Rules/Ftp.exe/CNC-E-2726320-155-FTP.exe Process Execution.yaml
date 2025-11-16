@@ -1,0 +1,45 @@
+title: CNC-E-2726320-155-FTP.exe Process Execution (Plaintext Creds Risk)
+id: a1c8e7d1-9f2e-4a11-9f55-2726320155aa
+status: test
+description: |
+  Detects execution of the legacy Windows FTP client (ftp.exe). Even if adversaries
+  don’t commonly use ftp.exe, administrators should avoid it: classic FTP transmits
+  usernames and passwords ( and all data transfered ) in **plaintext** and can expose data and credentials.
+  Prefer secure alternatives (SFTP/FTPS or approved tools) and review any usage.
+author: Mohamed Hanii
+date: 2025-10-03
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Ftp/
+  - https://learn.microsoft.com/en-us/answers/questions/1856771/is-the-ftp-exe-no-longer-supported
+  - https://win10.io/article/System-EXE-Files/ftp.html
+  - https://www.huntress.com/blog/exposing-data-exfiltration-lolbin-ttp-binaries
+tags:
+  - attack.t1105
+  - attack.command_and_control
+  - attack.exfiltration
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  sel_sysmon_eid1:
+    EventID: 1
+  sel_sysmon_image:
+    Image|endswith: '\ftp.exe'
+  sel_sysmon_ofn:
+    OriginalFileName: 'FTP.EXE'
+
+  sel_4688_eid:
+    EventID: 4688
+  sel_4688_proc:
+    NewProcessName|endswith: '\ftp.exe'
+
+  # Fire on any ftp.exe process start (Sysmon or 4688)
+  condition: (sel_sysmon_eid1 and (sel_sysmon_image or sel_sysmon_ofn)) or (sel_4688_eid and sel_4688_proc)
+
+falsepositives:
+  - Legacy admin scripts or manual operations that still invoke ftp.exe.
+  - Batch jobs performing file exchange with internal FTP servers.
+  - Tuning tip: allow-list known batch jobs, service accounts, and approved internal FTP hosts; flag all other usage. Prefer moving teams to secure file transfer methods to eliminate plaintext credential exposure.
+level: high

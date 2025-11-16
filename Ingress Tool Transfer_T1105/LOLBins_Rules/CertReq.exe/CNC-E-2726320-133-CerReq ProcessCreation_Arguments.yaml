@@ -1,0 +1,40 @@
+title: CNC-E-2726320-132-CerReq ProcessCreation_Arguments
+id: 2b253e7f-0858-4b7e-9c3c-2e4f8b2c0a55
+status: test
+description: |
+  Detects CertReq.exe invoked with the -Post option. CertReq is a legitimate PKI tool,
+  but its -Post capability can be abused to upload or download small files via HTTP POST,
+  enabling ingress tool transfer or data movement.
+author: Mohamed Hanii
+date: 2025-09-30
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Certreq/
+  - https://www.elastic.co/docs/reference/security/prebuilt-rules/rules/windows/command_and_control_certreq_postdata
+  - https://dtm.uk/certreq/
+  - https://socprime.com/blog/threat-hunting-content-certreq-exe-lolbin/
+  - https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/certreq_1
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  sel_sysmon:
+    EventID: 1
+    OriginalFileName: 'CertReq.exe'
+    CommandLine|contains:
+      - '-post'
+  sel_4688:
+    EventID: 4688
+    NewProcessName|endswith: '\certreq.exe'
+    ProcessCommandLine|contains:
+      - '-post'
+
+  condition: sel_sysmon or sel_4688
+
+falsepositives:
+  - Legitimate certificate enrollment workflows that use CertReq -Post to submit or retrieve requests/responses.
+level: high

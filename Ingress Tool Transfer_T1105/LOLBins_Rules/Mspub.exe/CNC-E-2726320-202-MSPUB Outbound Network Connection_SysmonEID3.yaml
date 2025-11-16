@@ -1,0 +1,34 @@
+title: CNC-E-2726320-202-MSPUB Outbound Network Connection (Sysmon EID 3)
+id: 7b1a53e8-476d-4f78-9f65-2726320202aa
+status: test
+description: |
+  Flags outbound network connections where the source process is mspub.exe. Publisher is a
+  desktop-publishing app and normally doesn’t act as a network fetcher unless opening content
+  from a remote location. The LOLBIN pattern (`mspub.exe <URL>`) can download to INetCache,
+  so any Publisher-driven egress (EID 3) should be reviewed for potential T1105 staging.
+references:
+  - IOC section in : https://lolbas-project.github.io/lolbas/OtherMSBinaries/Mspub/
+  - https://www.bleepingcomputer.com/news/security/hackers-can-abuse-microsoft-office-executables-to-download-malware/ 
+author: Mohamed Hanii
+date: 2025-10-10
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_image:
+    Image|endswith: '\mspub.exe'
+
+  # Alert whenever Publisher owns a network connection (investigate dest/reputation)
+  condition: sel_eid3 and sel_image
+
+falsepositives:
+  - Opening .pub files directly from trusted cloud storage (e.g., SharePoint/OneDrive) or internal SMB may attribute egress to the app.
+level: medium

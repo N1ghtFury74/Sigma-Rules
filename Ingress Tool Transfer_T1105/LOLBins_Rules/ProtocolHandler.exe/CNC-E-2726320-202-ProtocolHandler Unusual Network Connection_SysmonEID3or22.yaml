@@ -1,0 +1,39 @@
+title: CNC-E-2726320-202-ProtocolHandler Unusual Network Connection (Sysmon EID 3)
+id: 2726320-202-protocolhandler-net
+status: test
+description: |
+  Flags outbound network connections directly attributed to ProtocolHandler.exe. Normally, ProtocolHandler
+  is responsible for passing URLs to the browser or Office app, which then handles the network I/O. Seeing 
+  Sysmon EID 3 or EID 22 directly tied to ProtocolHandler is unusual and warrants investigation, as it may indicate 
+  sensor misattribution, process injection, or misuse. Correlate with a preceding URL launch via ProtocolHandler.exe 
+  and subsequent browser or Office app activity, including network connections and downloads.
+author: Mohamed Hanii
+date: 2025-10-14
+references:
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/ProtocolHandler/ 
+  - https://mthcht.medium.com/lolbas-detection-serie-2-mspub-exe-protocolhandler-exe-msohtmed-exe-356accfc2bff
+  - https://learn.microsoft.com/en-us/answers/questions/1190516/protocolhandler-exe-and-office-uri-scheme-no-longe
+  - https://learn.microsoft.com/en-us/answers/questions/1190516/protocolhandler-exe-and-office-uri-scheme-no-longe
+tags:
+  - attack.command_and_control
+  - attack.t1105
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3or22:
+    - EventID: 3
+    - EventID: 22
+  sel_image:
+    Image|endswith: '\ProtocolHandler.exe'
+
+  condition: sel_eid3or22 and sel_image
+
+
+falsepositives:
+  - Rare telemetry attribution issues, where ProtocolHandler is mistakenly linked to the network connection, though the browser or Office app made the actual connection (due to EDR quirks or driver issues).
+  - Tuning tips: Pair this detection with **process creation** to confirm a **URL** was passed to ProtocolHandler, and verify that a **child browser** (e.g., msedge.exe, chrome.exe) made the actual network connection. Suppress when connections are quickly re-attributed to the browser process.
+level: high

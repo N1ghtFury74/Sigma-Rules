@@ -1,0 +1,91 @@
+title: CNC-E-2726320-132-CertOC GetCACAPS To Non-Microsoft SCEP Path (Proc Creation)
+id: 5f6a8a7c-3d8e-4a2a-8c2d-1c11c0c0c0aa
+status: test
+description: |
+  Detects CertOC.exe invoked with -GetCACAPS where a URL is present but the path is NOT the standard
+  Microsoft NDES/ADCS SCEP endpoint (for example: /certsrv/mscep or /certsrv/mscep/mscep.dll).
+  CertOC (a signed LOLBin) can be abused to fetch plaintext content from arbitrary URLs, enabling
+  Ingress Tool Transfer (T1105) or reconnaissance of non-approved SCEP services. This rule fires on
+  -GetCACAPS + URL and suppresses alerts when the URL contains a known Microsoft SCEP path.
+author: Mohamed Hanii
+date: 2025-09-30
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Certoc/
+  - https://learn.microsoft.com/troubleshoot/mem/intune/certificates/troubleshoot-scep-certificate-device-to-ndes
+  - https://learn.microsoft.com/intune/intune-service/protect/certificates-profile-scep
+  - https://detection.fyi/sigmahq/sigma/windows/process_creation/proc_creation_win_certoc_download/
+  - https://learn.microsoft.com/windows/security/threat-protection/auditing/event-4688
+  - https://attack.mitre.org/techniques/T1105/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+  - windows
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---- Sysmon (EID 1)
+  sel_sysmon_eid1:
+    EventID: 1
+  sel_sysmon_img:
+    Image|endswith: '\certoc.exe'
+  sel_sysmon_ofn:
+    OriginalFileName: 'CertOC.exe'
+  sel_sysmon_cacaps:
+    CommandLine|contains:
+      - '-getcacaps'
+      - '-GetCACAPS'
+  sel_sysmon_url_hint:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - '://'
+  allow_ms_mscep_sysmon:
+    EventID: 1
+    CommandLine|contains:
+      - '/certsrv/mscep'
+      - '/certsrv/mscep/'
+
+  # ---- Windows Security (EID 4688)
+  sel_4688_eid:
+    EventID: 4688
+  sel_4688_img:
+    NewProcessName|endswith: '\certoc.exe'
+  sel_4688_cacaps:
+    ProcessCommandLine|contains:
+      - '-getcacaps'
+      - '-GetCACAPS'
+  sel_4688_url_hint:
+    ProcessCommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - '://'
+  allow_ms_mscep_4688:
+    EventID: 4688
+    ProcessCommandLine|contains:
+      - '/certsrv/mscep'
+      - '/certsrv/mscep/'
+
+  # Fire when CertOC -GetCACAPS is used with a URL and the URL path is NOT a Microsoft NDES SCEP path
+  condition: >
+    (
+      sel_sysmon_eid1 and (sel_sysmon_img or sel_sysmon_ofn) and sel_sysmon_cacaps and sel_sysmon_url_hint and not allow_ms_mscep_sysmon
+    )
+    or
+    (
+      sel_4688_eid and sel_4688_img and sel_4688_cacaps and sel_4688_url_hint and not allow_ms_mscep_4688
+    )
+
+falsepositives:
+  - |
+    Legitimate SCEP operations that do not use Microsoft NDES paths:
+      • Open-source SCEP (e.g., EJBCA) with custom endpoints
+      • Third-party CA/MDM SCEP gateways (e.g., DigiCert, GlobalSign)
+      • Device-hosted SCEP on network gear
+      • Internal custom SCEP relays or proxies
+    Tuning guidance:
+      • Add approved SCEP base paths/domains to allow-lists (e.g., /scep/, /ejbca/publicweb/apply/scep/)
+      • Baseline expected enrollment hosts per site/MDM and suppress those
+level: high

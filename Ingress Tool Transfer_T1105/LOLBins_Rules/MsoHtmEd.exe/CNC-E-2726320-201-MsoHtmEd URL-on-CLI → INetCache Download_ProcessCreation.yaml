@@ -1,0 +1,60 @@
+title: CNC-E-2726320-201-MsoHtmEd URL-on-CLI → INetCache Download (Process Creation)
+id: 6c3d3f3b-7e3d-4b8e-bd9b-2726320201aa
+status: test
+description: |
+  Detects a legacy Microsoft Office component used to render/edit and print HTML (MsoHtmEd.exe) launched with a remote URL on the command
+  line (http/https/ftp or generic "://"). This behavior is documented as a LOLBIN technique that
+  fetches content via the Windows web stack and places it in the user's INetCache (Ingress Tool
+  Transfer, T1105). Triaging should confirm the destination domain and any follow-on execution from
+  cache.
+author: Mohamed Hanii
+date: 2025-10-10
+references:
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/MsoHtmEd/           
+  - https://www.bleepingcomputer.com/news/security/hackers-can-abuse-microsoft-office-executables-to-download-malware/  
+  - https://www.tek-tips.com/threads/right-click-print-an-html-file.133118/     
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---- Sysmon (EID 1) ----
+  sel_sysmon_eid1:
+    EventID: 1
+  sel_sysmon_img:
+    Image|endswith: '\msohtmed.exe'
+  sel_sysmon_ofn:
+    OriginalFileName: 'MsoHtmEd.Exe'
+  sel_sysmon_url_tokens:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+      - '://'
+
+  # ---- Windows Security (EID 4688) ----
+  sel_4688_eid:
+    EventID: 4688
+  sel_4688_img:
+    NewProcessName|endswith: '\msohtmed.exe'
+  sel_4688_url_tokens:
+    ProcessCommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - 'ftp://'
+      - '://'
+
+  # Fire when MsoHtmEd is started with a URL on the CLI (either telemetry source)
+  condition: ( sel_sysmon_eid1 and (sel_sysmon_img or sel_sysmon_ofn) and sel_sysmon_url_tokens )
+             or
+             ( sel_4688_eid and sel_4688_img and sel_4688_url_tokens )
+
+
+falsepositives:
+  - Legit HTML viewing/printing flows (e.g., shell Print verb) that pass local/intranet paths.
+  - Enterprise tools that intentionally invoke MSOHTMED with internal URLs; tune on approved parent processes and tenant domains.
+level: high

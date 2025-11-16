@@ -1,0 +1,35 @@
+title: CNC-E-2726320-175-ECMangen Outbound Network Connection (Sysmon EID 3)
+id: 2dc7d0b0-0a2a-4a0a-9f9e-2726320175aa
+status: test
+description: |
+  Flags outbound connections made by **ECMangen.exe**. Per LOLBAS, when ECMangen (aka **ECManGen**)
+  is launched **with a URL**, it uses the Windows web stack to **download** the resource into the
+  user’s **INetCache** (Ingress Tool Transfer – T1105). Outside that URL-on-CLI case, ECMangen is a
+  **Windows SDK GUI** for authoring **ETW instrumentation manifests** and normally works on local
+  XML without network access; Microsoft’s eventing docs even recommend ECManGen for manifest authoring,
+  and note newer SDKs **removed** it (devs should hand-edit the XML schema instead). Correlate EID 3
+  with process creation showing a URL and INetCache writes to reduce noise.
+author: Mohamed Hanii
+date: 2025-10-08
+references:
+  - https://lolbas-project.github.io/lolbas/OtherMSBinaries/ECMangen/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_image:
+    Image|endswith: '\ECMangen.exe'
+
+  condition: sel_eid3 and sel_image
+
+falsepositives:
+  - Developer/SDK usage: running ECMangen interactively to author ETW manifests (local GUI work). 
+level: high

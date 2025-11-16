@@ -1,0 +1,135 @@
+title: CNC-E-2726320-131-BITS-Based Ingress Transfer via Non-MS Endpoints, Executable URLs, or Direct IP (Event ID 59)
+id: 1db5a0e0-9d7a-4e7a-9a7d-205901000000
+status: test
+description: |
+  Detects suspicious BITS transfers (Event ID 59 in Microsoft-Windows-Bits-Client/Operational):
+  1) URLs that do not match Microsoft Connected Cache/Delivery Optimization allowlisted endpoints; or
+  2) URLs that appear to fetch executable/installer content (e.g., .exe, .dll, .ps1, .js); or
+  3) Direct connections to literal IP addresses (http(s)://<IPv4>).
+  Adversaries abuse BITS for ingress tool transfer (T1105) and to stage payloads with system services. Administrators and
+  software distribution workflows may also use BITS—verify with IT/change records before suppression.
+author: Mohamed Hanii
+date: 2025-09-30
+references:
+  - https://www.elastic.co/docs/reference/security/prebuilt-rules/rules_building_block/command_and_control_bitsadmin_activity
+  - https://www.elastic.co/docs/reference/security/prebuilt-rules/rules/windows/command_and_control_ingress_transfer_bits
+  - https://www.thedfirspot.com/post/a-bits-of-a-problem-investigating-bits-jobs
+  - https://learn.microsoft.com/en-us/windows/deployment/do/delivery-optimization-endpoints
+  - https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/bitsadmin
+  - https://attack.mitre.org/techniques/T1105/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  service: Microsoft-Windows-Bits-Client/Operational
+
+detection:
+  sel_base:
+    EventID: 59
+
+  # Any URL present
+  sel_url_hint:
+    Message|contains:
+      - 'http://'
+      - 'https://'
+
+  # Microsoft DO/MCC allowlist (subset; extend per environment)
+  allow_ms_connected_cache:
+    Message|contains:
+      - '.download.windowsupdate.com'
+      - '.b1.download.windowsupdate.com'
+      - '.au.download.windowsupdate.com'
+      - '.au.b1.download.windowsupdate.com'
+      - 'dl.delivery.mp.microsoft.com'
+      - '.dl.delivery.mp.microsoft.com'
+      - 'tlu.dl.delivery.mp.microsoft.com'
+      - '.tlu.dl.delivery.mp.microsoft.com'
+      - 'ctldl.windowsupdate.com'
+      - '.ctldl.windowsupdate.com'
+      - 'download.windowsupdate.com'
+      - '.delivery.mp.microsoft.com'
+      - '.officecdn.microsoft.com'
+      - '.officecdn.microsoft.com.edgesuite.net'
+      - '.cdn.office.net'
+      - 'fg.tscdn.m365.static.microsoft'
+      - '.manage.microsoft.com'
+      - '-mscdn.manage.microsoft.com'
+      - '.statics.teams.cdn.office.net'
+      - 'sf.teams.static.microsoft'
+      - 'installer.teams.static.microsoft'
+      - '.res.cdn.office.net'
+      - '.assets.xbox.com'
+      - '.xboxlive.com'
+      - 'xvc-origin.xboxlive.com'
+      - 'tlu.dl.adu.microsoft.com'
+      - '.tlu.dl.adu.microsoft.com'
+      - 'nlu.dl.adu.microsoft.com'
+      - '.dl.adu.microsoft.com'
+      - 'dcsfe.prod.adu.microsoft.com'
+      - '.dcsfe.prod.adu.microsoft.com'
+      - '.do.dsp.mp.microsoft.com'
+      - '.azure-devices.net'
+      - '.global.azure-devices-provisioning.net'
+      - '.azurecr.io'
+      - '.blob.core.windows.net'
+      - '.mcr.microsoft.com'
+      - '.ubuntu.com'
+      - 'api.snapcraft.io'
+      - 'packages.microsoft.com'
+      - 'download.microsoft.com'
+      - 'aka.ms'
+
+  # Executable/archive/script extensions in the URL
+  sus_exec_like_url:
+    Message|contains:
+      - ".exe"
+      - ".dll"
+      - ".zip"
+      - ".rar"
+      - ".bat"
+      - ".ps1"
+      - ".vbs"
+      - ".wsh"
+      - ".js"
+      - ".vbe"
+      - ".pif"
+      - ".scr"
+      - ".cmd"
+      - ".cpl"
+      - ".7z"
+      - ".asax"
+      - ".ashx"
+      - ".asmx"
+      - ".asp"
+      - ".aspx"
+      - ".cfm"
+      - ".cgi"
+      - ".chm"
+      - ".gif"
+      - ".jpeg"
+      - ".jpg"
+      - ".jsp"
+      - ".jspx"
+      - ".log"
+      - ".png"
+      - ".psm1"
+      - ".scf"
+      - ".sct"
+      - ".txt"
+      - ".war"
+      - ".wsf"
+      - ".xll"
+  # Direct IP literal in URL (IPv4). Case-insensitive by default; includes optional port.
+  sel_ip_url:
+    Message|re: '(?i)https?://(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?(?:/|$)'
+
+  # Fire when URL present AND (non-MS allowlist OR exec-like URL OR IP literal)
+  condition: sel_base and sel_url_hint and (not allow_ms_connected_cache or sus_exec_like_url or sel_ip_url)
+
+falsepositives:
+  - Legitimate software updaters and enterprise patching tools that use BITS to download installers or updates (e.g., OS/Office/Edge/Intune content via Delivery Optimization/Connected Cache). Confirm with change tickets or deployment schedules before suppression.
+  - Microsoft services using additional first-party endpoints included in Delivery Optimization/Connected Cache guidance (Windows Update, Office CDN, Intune, Teams, Xbox, etc.). Extend the allowlist to match your environment’s approved Microsoft domains.
+  - Internal mirrors/CDNs or sanctioned third-party distribution platforms that proxy Microsoft content and use BITS for updates.
+level: medium

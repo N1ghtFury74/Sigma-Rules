@@ -1,0 +1,57 @@
+title: CNC-E-2726320-136-CMDL32 VPN/LAN Switches (Process Creation)
+id: 6b8a1a7c-3f2e-4d29-9e36-2726320136aa
+status: test
+description: |
+  Detects cmdl32.exe (Connection Manager downloader) launched with '/vpn' and '/lan' switches.
+  Adversaries may abuse CMDL32 to retrieve content or run actions via Connection Manager profiles.
+  This rule covers both Sysmon Event ID 1 and Windows Security 4688.
+author: Mohamed Hanii
+date: 2025-10-01
+references:
+  - https://elliotonsecurity.com/living-off-the-land-reverse-engineering-methodology-plus-tips-and-tricks-cmdl32-case-study/
+  - https://learn.microsoft.com/en-us/windows/win32/rras/connection-manager
+  - https://www.hexacorn.com/blog/2017/04/30/the-archaeologologogology-3-downloading-stuff-with-cmdln32/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # -------- Sysmon (Event ID 1) --------
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_img_and_ofn:
+    - Image|endswith: '\cmdl32.exe'
+    - OriginalFileName: 'CMDL32.EXE'
+  sel_sysmon_cli:
+    CommandLine|contains:
+      - '/vpn'
+      - '/lan'
+
+  # -------- Windows Security (Event ID 4688) --------
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_proc:
+    NewProcessName|endswith: '\cmdl32.exe'
+  sel_4688_cli:
+    ProcessCommandLine|contains:
+      - '/vpn'
+      - '/lan'
+
+  # Fire when CMDL32 is executed with both switches:
+  #   - Sysmon: (Image OR OriginalFileName) + CLI
+  #   - 4688 : NewProcessName + CLI
+  condition: (
+      sel_sysmon_base and sel_sysmon_img_and_ofn and sel_sysmon_cli
+    ) or (
+      sel_4688_base and sel_4688_proc and sel_4688_cli
+    )
+
+falsepositives:
+  - Normal use is CMDL32 spawned from Connection Manager fetching from your approved update site.
+  - Suspicious use is CMDL32 running outside Connection Manager or contacting unexpected external domains/IPs.
+  - Start with an allow-list of your Connection Manager update host(s) and alert on everything else.
+level: medium

@@ -1,0 +1,79 @@
+title: CNC-E-2726320-175-Scrobj.dll GenerateTypeLib URL → INetCache (Proc Creation)
+id: 2a3b4c5d-bbbb-41c6-8a22-2726320175aa
+status: test
+description: |
+  Detects `rundll32.exe` invoking **Scrobj.dll** (Windows Script Component Runtime)
+  with the **GenerateTypeLib** export and a **URL** (any token containing `://`).
+  As documented by LOLBAS and researchers, this specific call pattern:
+    rundll32.exe C:\Windows\System32\scrobj.dll,GenerateTypeLib <http/https URL>
+  causes Scrobj’s runtime to **download the remote resource into the user’s INetCache**
+  without executing it — a quiet **Ingress Tool Transfer (T1105)** using a Microsoft-signed DLL.
+  
+  Background:
+  • **Scrobj.dll** is the in-proc server for Windows Script Components (scriptlets, `.sct`);
+    it brokers COM requests to scripts. The `GenerateTypeLib` path legitimately relates to
+    producing type libraries for script components, but when pointed at a URL via rundll32,
+    it performs a network fetch that lands in **INetCache**. (See LOLBAS + community research.)
+  • This rule focuses on **process creation** evidence (Sysmon EID 1 / Sec 4688). For stronger
+    signal, correlate with **file writes in INetCache** and any **follow-on execution**.
+author: Mohamed Hanii
+date: 2025-10-08
+references:
+  - https://lolbas-project.github.io/lolbas/Libraries/Scrobj/                         
+  - https://mobile.twitter.com/eral4m/status/1479106975967240209                      
+  - https://nasbench.medium.com/a-deep-dive-into-rundll32-exe-642344b41e90
+  - https://detection.fyi/elastic/detection-rules/windows/defense_evasion_unusual_network_connection_via_rundll32/
+
+tags:
+  - attack.t1105
+  - attack.command_and_control
+
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  # ---- Sysmon (EID 1) ----
+  sel_sysmon_base:
+    EventID: 1
+  sel_sysmon_host:
+    Image|endswith: '\rundll32.exe'
+  sel_sysmon_host_ofn:                 # catch masqueraded/renamed binaries
+    OriginalFileName: 'RUNDLL32.EXE'
+  sel_sysmon_scrobj:
+    CommandLine|contains:
+      - 'scrobj.dll,GenerateTypeLib'
+  sel_sysmon_url:
+    CommandLine|contains:
+      -  '://'
+      - 'http'
+      - 'https'
+      - 'ftp'
+
+  # ---- Windows Security (EID 4688) ----
+  sel_4688_base:
+    EventID: 4688
+  sel_4688_host:
+    NewProcessName|endswith: '\rundll32.exe'
+  sel_4688_scrobj:
+    ProcessCommandLine|contains:
+      - 'scrobj.dll,GenerateTypeLib'
+  sel_4688_url:
+    ProcessCommandLine|contains:
+      - '://'
+      - 'http'
+      - 'https'
+      - 'ftp'
+
+
+  # Fire when rundll32 calls scrobj.dll GenerateTypeLib with a URL
+  condition: 
+    ( sel_sysmon_base and ( sel_sysmon_host or sel_sysmon_host_ofn ) and sel_sysmon_scrobj and sel_sysmon_url )
+    or
+    ( sel_4688_base and sel_4688_host and sel_4688_scrobj and sel_4688_url )
+
+falsepositives:
+  - Script component development or QA : rare dev/test rigs generating script component type libraries from internal web servers may exercise this path.
+  - Security tooling or sandboxing : automated detonation frameworks may probe LOLBAS behaviors (including Scrobj GenerateTypeLib) against benign URLs.
+  - Legacy admin scripts : extremely uncommon, but older automation could fetch resources this way inside lab environments.
+level: high

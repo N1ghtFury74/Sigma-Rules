@@ -1,0 +1,36 @@
+title: CNC-E-2726320-164-InstallUtil Network Connection (Sysmon EID 3)
+id: 9f1c7b2a-5c3d-4a3c-9a6b-2726320164aa
+status: test
+description: |
+  Detects any network connection by InstallUtil.exe (Sysmon Event ID 3), focusing on
+  outbound activity that implies remote retrieval/execution. In normal use, InstallUtil
+  operates on local assemblies; outbound connections (e.g., to 80/443/21/990) warrant
+  investigation to confirm destination, business need, and potential abuse.
+  Note : In Microsoft’s terminology, InstallUtil.exe doesn’t “install from the internet.” It executes installer components 
+  (classes derived from System.Configuration.Install.Installer, typically marked with [RunInstaller(true)]) that live inside a .NET assembly you point it at.
+  Those installer classes run code to create or remove local resources on the machine
+author: Mohamed Hanii
+date: 2025-10-02
+references:
+  - https://lolbas-project.github.io/lolbas/Binaries/Installutil/
+  - https://learn.microsoft.com/dotnet/framework/tools/installutil-exe-installer-tool
+tags:
+  - attack.t1105
+  - attack.command_and_control
+  - attack.t1218
+
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+
+detection:
+  sel_eid3:
+    EventID: 3
+  sel_img:
+    Image|endswith: '\installutil.exe'
+  condition: sel_eid3 and sel_img 
+
+falsepositives:
+  - Rare but may happen in some scenarios like CI/CD or software distribution systems invoking InstallUtil during deployment with internal endpoints.
+level: high

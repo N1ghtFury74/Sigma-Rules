@@ -1,0 +1,76 @@
+title: CNC-E-2726320-131-BITS-Based Ingress Transfer via bitsadmin or PowerShell BITS Cmdlets
+id: 7f4a2b5e-6d9a-4e62-9df8-9f7a2c11b0aa
+status: test
+description: |
+  Detects potential ingress tool transfer (T1105) via Background Intelligent Transfer Service (BITS), either by
+  direct use of bitsadmin.exe switches (/Transfer, /Create, AddFile, SetNotify*, SetMinRetryDelay, SetCustomHeaders, /Resume)
+  or via PowerShell BITS cmdlets (Start-BitsTransfer, Add-BitsFile, Resume-BitsTransfer, Set-BitsTransfer, BITS.Manager).
+  Adversaries abuse BITS to persist, download/execute payloads, and even clean up artifacts; however, administrators and
+  legitimate software management workflows may also use BITS for content delivery.
+author: Mohamed Hanii
+date: 2025-09-30
+references:
+  - https://www.elastic.co/docs/reference/security/prebuilt-rules/rules_building_block/command_and_control_bitsadmin_activity
+  - https://www.elastic.co/docs/reference/security/prebuilt-rules/rules/windows/command_and_control_ingress_transfer_bits
+  - https://www.thedfirspot.com/post/a-bits-of-a-problem-investigating-bits-jobs
+  - https://learn.microsoft.com/windows-server/administration/windows-commands/bitsadmin
+  - https://attack.mitre.org/techniques/T1105/
+tags:
+  - attack.t1105
+  - attack.command_and_control
+  - attack.execution
+logsource:
+  product: windows
+  category: process_creation
+
+detection:
+  sel_sysmon_bitsadmin:
+    EventID: 1
+    Image|endswith: '\bitsadmin.exe'
+    CommandLine|contains:
+      - 'Transfer'
+      - 'Create'
+      - 'AddFile'
+      - 'SetNotifyFlags'
+      - 'SetNotifyCmdLine'
+      - 'SetMinRetryDelay'
+      - 'SetCustomHeaders'
+      - 'Resume'
+  sel_sysmon_powershell:
+    EventID: 1
+    Image|endswith: '\powershell.exe'
+    CommandLine|contains:
+      - 'Start-BitsTransfer'
+      - 'Add-BitsFile'
+      - 'Resume-BitsTransfer'
+      - 'Set-BitsTransfer'
+      - 'BITS.Manager'
+
+  sel_4688_bitsadmin:
+    EventID: 4688
+    NewProcessName|endswith: '\bitsadmin.exe'
+    ProcessCommandLine|contains:
+      - 'Transfer'
+      - 'Create'
+      - 'AddFile'
+      - 'SetNotifyFlags'
+      - 'SetNotifyCmdLine'
+      - 'SetMinRetryDelay'
+      - 'SetCustomHeaders'
+      - 'Resume'
+  sel_4688_powershell:
+    EventID: 4688
+    NewProcessName|endswith: '\powershell.exe'
+    ProcessCommandLine|contains:
+      - 'Start-BitsTransfer'
+      - 'Add-BitsFile'
+      - 'Resume-BitsTransfer'
+      - 'Set-BitsTransfer'
+      - 'BITS.Manager'
+
+  condition: sel_sysmon_bitsadmin or sel_sysmon_powershell or sel_4688_bitsadmin or sel_4688_powershell
+
+falsepositives:
+  - Legitimate administrative or software distribution activity that uses BITS jobs (bitsadmin.exe or PowerShell BITS cmdlets)
+  - Enterprise software deployment/patching frameworks leveraging BITS
+level: medium
